@@ -20,10 +20,11 @@ import { EdgeRouterEngine, markProviderKeysExhausted } from '../services/edgeRou
 import { SmartPromptRouter, PromptAnalysis } from '../services/autonomousWatchdog';
 import { SkeletonLoader } from './SkeletonLoader';
 import { getActiveGeminiKey } from '../utils/auth';
-import { getAllProviderKeys, markDeadByPrefixes, reviveProviderKey } from '../utils/providerKeys';
+import { getAllProviderKeys, getProviderKeyEntries, getProviderKeyHints, markDeadByPrefixes, reviveProviderKey, effectiveUpstream } from '../utils/providerKeys';
 import { modelsWithKeyStatus, upstreamForModel, UPSTREAM_META } from '../utils/upstream';
-import { detectKeyUpstream } from '../utils/providerKeys';
 import { loadLiveCatalog, getModelStatus, markModelOk, markModelFailed, isModelGoneError, runCatalogSync } from '../utils/catalog';
+import { recordKeyOk, recordKey429, recordKeyDead } from '../utils/keyHealth';
+import { listCustomEndpoints } from '../utils/customEndpoints';
 import { notify } from '../utils/notify';
 
 interface EdgeTesterProps {
@@ -120,8 +121,23 @@ export const EdgeTester: React.FC<EdgeTesterProps> = ({
         try {
           const t0 = Date.now();
           const pool = pools[decision.providerId] || [];
+          const entries = getProviderKeyEntries(decision.providerId);
+          const hints = getProviderKeyHints(decision.providerId);
           const fallbackKey = getActiveGeminiKey();
-          const apiKeys = pool.length > 0 ? pool : (fallbackKey ? [fallbackKey] : []);
+          const apiKeys = pool.length > 0 ? [...pool] : (fallbackKey ? [fallbackKey] : []);
+          const keyUpstreams = pool.length > 0 ? [...hints] : (fallbackKey ? ['prov-gemini'] : []);
+          const keyBases: string[] = apiKeys.map(() => '');
+          const keyModels: string[] = apiKeys.map(() => '');
+          // Custom endpoints ride along: own base + model affinity (gateway routes them first on match).
+          try {
+            listCustomEndpoints().filter((c) => c.enabled && c.key && c.baseUrl && c.model).forEach((c) => {
+              if (apiKeys.includes(c.key.trim())) return;
+              apiKeys.push(c.key.trim());
+              keyUpstreams.push(c.tag || 'unknown');
+              keyBases.push(c.baseUrl);
+              keyModels.push(c.model);
+            });
+          } catch { /* ignore */ }
           const res = await fetch('/api/v1/chat/completions', {
             method: 'POST',
             headers: {
@@ -131,6 +147,9 @@ export const EdgeTester: React.FC<EdgeTesterProps> = ({
             body: JSON.stringify({
               providerId: decision.providerId,
               apiKeys,
+              keyUpstreams,
+              keyBases,
+              keyModels,
               model: selectedModel,
               messages: [{ role: 'user', content: prompt }],
               max_tokens: 600,
@@ -138,13 +157,29 @@ export const EdgeTester: React.FC<EdgeTesterProps> = ({
             }),
           });
 
+          const findByPrefix = (prefix: string): number => pool.findIndex((k) => k.startsWith(prefix));
+          const upstreamOfIdx = (idx: number): string => {
+            const e = entries[idx];
+            if (e) return effectiveUpstream(e);
+            return upstreamForModel(selectedModel) || 'unknown';
+          };
           const reportDead = (prefixes: any) => {
             const list = Array.isArray(prefixes) ? prefixes.filter((p) => typeof p === 'string') : [];
             if (list.length === 0) return;
             const fresh = markDeadByPrefixes(decision.providerId, list);
             fresh.forEach((e) => {
+              recordKeyDead(e.k, effectiveUpstream(e));
               notify('error', `Dead key OUT: ${decision.providerName}`, `#${pool.findIndex((k) => k === e.k) + 1}${e.g ? ` (${e.g})` : ''} kaam nahi kar rahi — us Gmail se nayi nikalo.`);
             });
+          };
+          // Per-key 429 cooldowns (SMART: sirf exhausted keys cool hoti hai, poora pool nahi)
+          const report429 = (prefixes: any) => {
+            const list = Array.isArray(prefixes) ? prefixes.filter((p) => typeof p === 'string') : [];
+            list.forEach((p) => {
+              const idx = findByPrefix(p);
+              if (idx !== -1) recordKey429(pool[idx], upstreamOfIdx(idx));
+            });
+            return list.length;
           };
 
           if (res.ok) {
@@ -160,18 +195,20 @@ export const EdgeTester: React.FC<EdgeTesterProps> = ({
             const kp = data.edge_routing?.key_prefix;
             let ki = typeof data.edge_routing?.key_index === 'number' ? data.edge_routing.key_index : -1;
             if (typeof kp === 'string' && kp) {
-              const found = pool.findIndex((k) => k.startsWith(kp));
+              const found = findByPrefix(kp);
               if (found !== -1) ki = found;
             }
             if (ki >= 0) {
               decision.apiKeyIndex = ki;
+              recordKeyOk(pool[ki], data.edge_routing?.upstream_id || upstreamOfIdx(ki), decision.latencyMs);
               if (reviveProviderKey(decision.providerId, ki)) {
                 notify('success', `Key wapas live: ${decision.providerName} #${ki + 1}`, 'Dead mark hata diya.');
               }
             }
             reportDead(data.edge_routing?.dead_key_prefixes);
+            report429(data.edge_routing?.rate_limited_prefixes);
             if (decision.crossProviderFailover || (data.edge_routing?.keys_tried || 1) > 1) {
-              notify('warn', `Key rotate: ${decision.providerName}`, `Key #${(ki ?? 0) + 1} se jawab aaya.`);
+              notify('warn', `Key rotate: ${decision.providerName}`, `Key #${(ki ?? 0) + 1} se jawab aaya (${data.edge_routing?.keys_tried || 1} tried).`);
             }
           } else if (res.status === 401) {
             decision.responsePayload = `${decision.providerName} ki key dalo (KEYS button → Provider Keys).`;
@@ -179,8 +216,12 @@ export const EdgeTester: React.FC<EdgeTesterProps> = ({
             notify('warn', 'Key missing', `${decision.providerName} ke liye koi key nahi mili.`);
           } else if (res.status === 429 || res.status === 502) {
             const data = await res.json().catch(() => null);
-            markProviderKeysExhausted(decision.providerId, Math.max(1, pool.length));
             reportDead(data?.error?.dead_key_prefixes || data?.edge_routing?.dead_key_prefixes);
+            const cooled = report429(data?.error?.rate_limited_prefixes || data?.edge_routing?.rate_limited_prefixes);
+            if (cooled === 0) {
+              // Backend ne specific keys nahi batayi — engine-level fallback cooldown
+              markProviderKeysExhausted(decision.providerId, Math.max(1, pool.length));
+            }
             const emsg = data?.error?.message || `Upstream busy (${res.status}). 60s cooldown lagaya.`;
             decision.responsePayload = emsg;
             decision.isLive = false;
@@ -189,7 +230,7 @@ export const EdgeTester: React.FC<EdgeTesterProps> = ({
               setCatalogTick((t) => t + 1);
               notify('warn', `Model hata: ${selectedModel}`, 'Provider pe ye model nahi raha — list se auto-hide. Sync se wapas aayega.');
             } else {
-              notify('error', `Quota/busy: ${decision.providerName}`, 'Keys 60s cooldown pe. Fallback ya nayi key lagao.');
+              notify('error', `Quota/busy: ${decision.providerName}`, cooled > 0 ? `${cooled} key(s) 60s cooldown pe — baaki keys se auto-rotate.` : 'Keys 60s cooldown pe. Fallback ya nayi key lagao.');
             }
           } else {
             const data = await res.json().catch(() => null);
@@ -338,13 +379,17 @@ export const EdgeTester: React.FC<EdgeTesterProps> = ({
                 void catalogTick;
                 const live = loadLiveCatalog();
                 const pools = getAllProviderKeys((providers || []).map((p) => p.id));
-                const allPoolKeys: string[] = [];
-                Object.values(pools).forEach((arr) => {
-                  if (Array.isArray(arr)) allPoolKeys.push(...arr);
-                });
+                const allEff: string[] = [];
+                try {
+                  (providers || []).forEach((p) => {
+                    getProviderKeyEntries(p.id).forEach((e) => {
+                      if (e.s === 'active') allEff.push(effectiveUpstream(e));
+                    });
+                  });
+                } catch { /* ignore */ }
                 const hasKeyFor = (up: string | null) => {
-                  if (!up) return allPoolKeys.length > 0;
-                  return allPoolKeys.some((k) => detectKeyUpstream(k) === up);
+                  if (!up) return allEff.length > 0;
+                  return allEff.includes(up);
                 };
                 const failedMap = getModelStatus();
                 type Row = { id: string; up: string | null; upName: string; hasKey: boolean; failed: boolean; free: boolean };
@@ -377,6 +422,26 @@ export const EdgeTester: React.FC<EdgeTesterProps> = ({
                     free: true,
                   }));
                 }
+                // Custom endpoints: apna model, apni key — hamesha ready (own key inside).
+                try {
+                  const have = new Set(rows.map((r) => r.id));
+                  listCustomEndpoints().filter((c) => c.enabled && c.model).forEach((c) => {
+                    if (have.has(c.model)) {
+                      const r = rows.find((x) => x.id === c.model);
+                      if (r) { r.hasKey = true; r.upName = `${r.upName} + ${c.name}`; }
+                      return;
+                    }
+                    have.add(c.model);
+                    rows.push({
+                      id: c.model,
+                      up: c.tag || 'custom',
+                      upName: `Custom · ${c.name}`,
+                      hasKey: true,
+                      failed: failedMap[c.model]?.state === 'failed',
+                      free: true,
+                    });
+                  });
+                } catch { /* ignore */ }
                 const q = modelSearch.trim().toLowerCase();
                 const shown = rows.filter((r) => {
                   if (modelFilter === 'active' && (!r.hasKey || r.failed)) return false;

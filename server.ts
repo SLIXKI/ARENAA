@@ -35,14 +35,30 @@ function resolvePublicUserKey(req: any): string {
 }
 
 // Universal upstream table (ONE virtual provider; model naam se auto-route).
-const UPSTREAMS: Record<string, { name: string; baseUrl: string; defaultModel: string }> = {
+const UPSTREAMS: Record<string, { name: string; baseUrl: string; defaultModel: string; native?: string }> = {
   "prov-gemini": { name: "Google Gemini", baseUrl: "https://generativelanguage.googleapis.com/v1beta/openai", defaultModel: "gemini-flash-latest" },
   "prov-groq": { name: "Groq", baseUrl: "https://api.groq.com/openai/v1", defaultModel: "llama-3.3-70b-versatile" },
   "prov-openrouter": { name: "OpenRouter", baseUrl: "https://openrouter.ai/api/v1", defaultModel: "google/gemma-4-31b-it:free" },
   "prov-cerebras": { name: "Cerebras", baseUrl: "https://api.cerebras.ai/v1", defaultModel: "llama-3.3-70b" },
+  "prov-openai": { name: "OpenAI", baseUrl: "https://api.openai.com/v1", defaultModel: "gpt-4o-mini" },
+  "prov-anthropic": { name: "Anthropic", baseUrl: "https://api.anthropic.com/v1", defaultModel: "claude-3-5-haiku-latest", native: "anthropic" },
+  "prov-deepseek": { name: "DeepSeek", baseUrl: "https://api.deepseek.com/v1", defaultModel: "deepseek-chat" },
+  "prov-mistral": { name: "Mistral", baseUrl: "https://api.mistral.ai/v1", defaultModel: "mistral-small-latest" },
+  "prov-xai": { name: "xAI", baseUrl: "https://api.x.ai/v1", defaultModel: "grok-3-mini" },
+  "prov-perplexity": { name: "Perplexity", baseUrl: "https://api.perplexity.ai", defaultModel: "sonar" },
+  "prov-together": { name: "Together", baseUrl: "https://api.together.xyz/v1", defaultModel: "meta-llama/Llama-3.3-70B-Instruct-Turbo" },
+  "prov-fireworks": { name: "Fireworks", baseUrl: "https://api.fireworks.ai/inference/v1", defaultModel: "accounts/fireworks/models/llama-v3p1-8b-instruct" },
+  "prov-siliconflow": { name: "SiliconFlow", baseUrl: "https://api.siliconflow.cn/v1", defaultModel: "Qwen/Qwen2.5-7B-Instruct" },
+  "prov-novita": { name: "Novita", baseUrl: "https://api.novita.ai/v3/openai", defaultModel: "meta-llama/llama-3.1-8b-instruct" },
+  "prov-hyperbolic": { name: "Hyperbolic", baseUrl: "https://api.hyperbolic.xyz/v1", defaultModel: "meta-llama/Meta-Llama-3.1-8B-Instruct" },
+  "prov-chutes": { name: "Chutes", baseUrl: "https://llm.chutes.ai/v1", defaultModel: "deepseek-ai/DeepSeek-V3" },
+  "prov-glhf": { name: "GLHF", baseUrl: "https://glhf.chat/api/openai/v1", defaultModel: "hf:meta-llama/Llama-3.3-70B-Instruct" },
+  "prov-cohere": { name: "Cohere", baseUrl: "https://api.cohere.ai/compatibility/v1", defaultModel: "command-r-plus" },
 };
 
-const UPSTREAM_PRIORITY = ["prov-gemini", "prov-groq", "prov-openrouter", "prov-cerebras"];
+const KNOWN_UPSTREAMS_LOCAL = new Set(Object.keys(UPSTREAMS));
+
+const UPSTREAM_PRIORITY = ["prov-gemini","prov-groq","prov-cerebras","prov-openrouter","prov-deepseek","prov-mistral","prov-together","prov-fireworks","prov-siliconflow","prov-novita","prov-hyperbolic","prov-chutes","prov-glhf","prov-openai","prov-anthropic","prov-xai","prov-perplexity","prov-cohere"];
 
 const MODEL_UPSTREAM: Record<string, string> = {
   "gemini-flash-latest": "prov-gemini",
@@ -52,11 +68,28 @@ const MODEL_UPSTREAM: Record<string, string> = {
   "llama-3.3-70b-versatile": "prov-groq",
   "mixtral-8x7b-32768": "prov-groq",
   "gemma2-9b-it": "prov-groq",
+  "llama-3.1-8b-instant": "prov-groq",
   "google/gemma-4-31b-it:free": "prov-openrouter",
   "nex-agi/nex-n2.5-mini:free": "prov-openrouter",
   "liquid/lfm-2.5-2.6b:free": "prov-openrouter",
   "llama-3.3-70b": "prov-cerebras",
   "llama3.1-8b": "prov-cerebras",
+  "gpt-4o-mini": "prov-openai", "gpt-4o": "prov-openai", "gpt-4.1-mini": "prov-openai", "gpt-4.1": "prov-openai",
+  "o1-mini": "prov-openai", "o3-mini": "prov-openai", "chatgpt-4o-latest": "prov-openai",
+  "claude-3-5-haiku-latest": "prov-anthropic", "claude-3-5-sonnet-latest": "prov-anthropic", "claude-3-haiku-20240307": "prov-anthropic",
+  "deepseek-chat": "prov-deepseek", "deepseek-reasoner": "prov-deepseek",
+  "mistral-small-latest": "prov-mistral", "mistral-medium-latest": "prov-mistral", "mistral-large-latest": "prov-mistral",
+  "open-mistral-7b": "prov-mistral", "open-mixtral-8x7b": "prov-mistral",
+  "grok-3-mini": "prov-xai", "grok": "prov-xai", "grok-2-1212": "prov-xai",
+  "sonar": "prov-perplexity", "sonar-pro": "prov-perplexity", "sonar-reasoning": "prov-perplexity",
+  "meta-llama/Llama-3.3-70B-Instruct-Turbo": "prov-together", "Qwen/Qwen2.5-Coder-32B-Instruct": "prov-together",
+  "accounts/fireworks/models/llama-v3p1-8b-instruct": "prov-fireworks", "accounts/fireworks/models/qwen2p5-coder-32b-instruct": "prov-fireworks",
+  "Qwen/Qwen2.5-7B-Instruct": "prov-siliconflow", "THUDM/glm-4-9b-chat": "prov-siliconflow",
+  "meta-llama/llama-3.1-8b-instruct": "prov-novita",
+  "meta-llama/Meta-Llama-3.1-8B-Instruct": "prov-hyperbolic",
+  "deepseek-ai/DeepSeek-V3": "prov-chutes",
+  "hf:meta-llama/Llama-3.3-70B-Instruct": "prov-glhf", "hf:Qwen/Qwen2.5-72B-Instruct": "prov-glhf",
+  "command-r-plus": "prov-cohere", "command-r": "prov-cohere",
 };
 
 function detectKeyUpstream(key: string): string {
@@ -65,36 +98,70 @@ function detectKeyUpstream(key: string): string {
   if (k.startsWith("gsk_")) return "prov-groq";
   if (k.startsWith("sk-or-")) return "prov-openrouter";
   if (k.startsWith("csk-")) return "prov-cerebras";
+  if (k.startsWith("sk-proj-") || k.startsWith("sk-svcacct-")) return "prov-openai";
+  if (k.startsWith("sk-ant-")) return "prov-anthropic";
+  if (k.startsWith("xai-")) return "prov-xai";
+  if (k.startsWith("pplx-")) return "prov-perplexity";
+  if (k.startsWith("fw_")) return "prov-fireworks";
+  if (k.startsWith("glhf_")) return "prov-glhf";
   return "unknown";
 }
 
 function upstreamForModel(model: string): string | null {
+  if (!model) return null;
   if (MODEL_UPSTREAM[model]) return MODEL_UPSTREAM[model];
-  if (model.startsWith("openai/") || model.startsWith("anthropic/")) return "prov-openrouter";
   if (model.startsWith("gemini-")) return "prov-gemini";
+  if (/^(gpt-|o1-|o3-|chatgpt-)/.test(model)) return "prov-openai";
+  if (model.startsWith("claude-")) return "prov-anthropic";
+  if (model.startsWith("deepseek-")) return "prov-deepseek";
+  if (/^(mistral-|open-mistral|open-mixtral)/.test(model)) return "prov-mistral";
+  if (model.startsWith("grok")) return "prov-xai";
+  if (model.startsWith("sonar")) return "prov-perplexity";
+  if (model.startsWith("command-")) return "prov-cohere";
+  if (model.startsWith("hf:")) return "prov-glhf";
+  if (model.startsWith("accounts/")) return "prov-fireworks";
+  if (model.endsWith(":free")) return "prov-openrouter";
+  if (model.startsWith("openai/") || model.startsWith("anthropic/")) return "prov-openrouter";
   return null;
 }
 
-function orderKeysForUpstream(keys: string[], target: string | null): string[] {
-  if (!target) {
-    const rank = (k: string) => {
-      const u = detectKeyUpstream(k);
-      if (u === "unknown") return 99;
-      const i = UPSTREAM_PRIORITY.indexOf(u);
-      return i === -1 ? 50 : i;
-    };
-    return [...keys].sort((a, b) => rank(a) - rank(b));
-  }
-  const match: string[] = [];
-  const unknown: string[] = [];
-  const rest: string[] = [];
-  keys.forEach((k) => {
-    const u = detectKeyUpstream(k);
-    if (u === target) match.push(k);
-    else if (u === "unknown") unknown.push(k);
-    else rest.push(k);
-  });
-  return [...match, ...unknown, ...rest];
+interface PoolItemLocal { key: string; hint: string; base?: string; aff?: string; }
+function effectiveLocal(key: string, hint: string): string {
+  return hint && KNOWN_UPSTREAMS_LOCAL.has(hint) ? hint : detectKeyUpstream(key);
+}
+
+// Smart rotation memory: 429-cooldowns + fail stats + LRU
+const COOLDOWN_MS_LOCAL = 60_000;
+const keyCooldownUntilLocal = new Map<string, number>();
+const keyFail429Local = new Map<string, number>();
+const keyFailOtherLocal = new Map<string, number>();
+const keyLastUsedLocal = new Map<string, number>();
+function keyHashLocal(k: string): string {
+  return crypto.createHash("sha256").update(k).digest("hex").slice(0, 16);
+}
+
+function orderPoolLocal(pool: PoolItemLocal[], target: string | null, wanted = ""): PoolItemLocal[] {
+  const now = Date.now();
+  const bucket = (p: PoolItemLocal): number => {
+    if (wanted && p.aff && p.aff === wanted) return -1;
+    if (!target) { const i = UPSTREAM_PRIORITY.indexOf(p.hint); return p.hint === "unknown" ? 99 : i === -1 ? 50 : i; }
+    if (p.hint === target) return 0;
+    if (p.hint === "unknown") return 1;
+    return 2;
+  };
+  return [...pool].map((p, idx) => ({ p, idx })).sort((a, b) => {
+    const ba = bucket(a.p), bb = bucket(b.p);
+    if (ba !== bb) return ba - bb;
+    const ca = (keyCooldownUntilLocal.get(keyHashLocal(a.p.key)) || 0) > now ? 1 : 0;
+    const cb = (keyCooldownUntilLocal.get(keyHashLocal(b.p.key)) || 0) > now ? 1 : 0;
+    if (ca !== cb) return ca - cb;
+    const fa = (keyFail429Local.get(keyHashLocal(a.p.key)) || 0) * 3 + (keyFailOtherLocal.get(keyHashLocal(a.p.key)) || 0);
+    const fb = (keyFail429Local.get(keyHashLocal(b.p.key)) || 0) * 3 + (keyFailOtherLocal.get(keyHashLocal(b.p.key)) || 0);
+    if (fa !== fb) return fa - fb;
+    const la = keyLastUsedLocal.get(keyHashLocal(a.p.key)) || 0, lb = keyLastUsedLocal.get(keyHashLocal(b.p.key)) || 0;
+    if (la !== lb) return la - lb;
+    return a.idx - b.idx;
+  }).map((e) => e.p);
 }
 
 const LEGACY_GEMINI_ALIAS: Record<string, string> = {
@@ -110,7 +177,7 @@ function isAllowedUpstream(raw: string): boolean {
     const u = new URL(raw);
     if (u.protocol !== "https:") return false;
     const host = u.hostname.toLowerCase();
-    if (/(^|\.)(generativelanguage\.googleapis\.com|api\.groq\.com|openrouter\.ai|api\.cerebras\.ai)$/.test(host)) return true;
+    if (/(^|\.)(generativelanguage\.googleapis\.com|api\.groq\.com|openrouter\.ai|api\.cerebras\.ai|api\.openai\.com|api\.anthropic\.com|api\.deepseek\.com|api\.mistral\.ai|api\.x\.ai|api\.perplexity\.ai|api\.together\.xyz|api\.fireworks\.ai|api\.siliconflow\.cn|api\.novita\.ai|api\.hyperbolic\.xyz|llm\.chutes\.ai|chutes\.ai|glhf\.chat|api\.cohere\.ai)$/.test(host)) return true;
     if (!host.includes(".")) return false;
     if (host === "localhost" || host.endsWith(".localhost") || host.endsWith(".local") || host.endsWith(".internal")) return false;
     if (/^(10\.|127\.|192\.168\.|169\.254\.|0\.0\.0\.0)/.test(host)) return false;
@@ -130,17 +197,30 @@ function bearerTokenLocal(req: any): string {
   return tok;
 }
 
-function collectRelayKeys(req: any, body: any): string[] {
-  const out: string[] = [];
-  const push = (v: any) => {
-    if (typeof v === "string" && v.trim()) out.push(v.trim());
+function collectRelayKeys(req: any, body: any): PoolItemLocal[] {
+  const out: PoolItemLocal[] = [];
+  const seen = new Set<string>();
+  const parallel: string[] = Array.isArray(body?.keyUpstreams) ? body.keyUpstreams : [];
+  const bases: string[] = Array.isArray(body?.keyBases) ? body.keyBases : [];
+  const models: string[] = Array.isArray(body?.keyModels) ? body.keyModels : [];
+  const hintMap: Record<string, string> = body?.keyHints && typeof body.keyHints === "object" ? body.keyHints : {};
+  const push = (v: any, hint = "", base = "", aff = "") => {
+    if (typeof v !== "string" || !v.trim()) return;
+    const t = v.trim();
+    if (seen.has(t)) return;
+    seen.add(t);
+    const h = hint || hintMap[t.slice(0, 8)] || "";
+    const item: PoolItemLocal = { key: t, hint: effectiveLocal(t, h) };
+    if (base && isAllowedUpstream(base)) item.base = base.trim().replace(/\/+$/, "");
+    if (aff && typeof aff === "string") item.aff = aff.trim().slice(0, 120);
+    out.push(item);
   };
   push(req.headers["x-api-key"]);
   push(req.headers["x-gemini-key"]);
   push(bearerTokenLocal(req));
-  if (Array.isArray(body?.apiKeys)) body.apiKeys.forEach(push);
+  if (Array.isArray(body?.apiKeys)) body.apiKeys.forEach((k: any, i: number) => push(k, parallel[i] || "", bases[i] || "", models[i] || ""));
   push(body?.clientApiKey);
-  return [...new Set(out)];
+  return out;
 }
 
 function resolveCustomBase(body: any): { baseUrl: string; error?: string } {
@@ -150,7 +230,34 @@ function resolveCustomBase(body: any): { baseUrl: string; error?: string } {
   return { baseUrl: custom };
 }
 
-async function relayChatCompletion(opts: { baseUrl: string; apiKey: string; model: string; messages: any[]; maxTokens: number; temperature: number }): Promise<{ ok: boolean; status: number; data: any }> {
+async function relayAnthropicLocal(opts: { apiKey: string; model: string; messages: any[]; maxTokens: number; temperature: number }): Promise<{ ok: boolean; status: number; data: any }> {
+  const sys = (opts.messages || []).filter((m: any) => m?.role === "system").map((m: any) => typeof m.content === "string" ? m.content : "").filter(Boolean).join("\n\n");
+  const msgs = (opts.messages || []).filter((m: any) => m?.role && m.role !== "system").map((m: any) => ({ role: m.role === "assistant" ? "assistant" : "user", content: typeof m.content === "string" ? m.content : JSON.stringify(m.content ?? "") }));
+  let resp: Response;
+  try {
+    resp = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-api-key": opts.apiKey, "anthropic-version": "2023-06-01" },
+      body: JSON.stringify({ model: opts.model, max_tokens: Math.min(opts.maxTokens || 512, 1024), temperature: opts.temperature ?? 0.7, ...(sys ? { system: sys } : {}), messages: msgs.length ? msgs : [{ role: "user", content: "ping" }] }),
+    });
+  } catch (e: any) {
+    return { ok: false, status: 502, data: { message: `Anthropic unreachable: ${e?.message || e}` } };
+  }
+  let data: any = null;
+  try {
+    data = await resp.json();
+  } catch {
+    data = { message: `Anthropic bad response (HTTP ${resp.status})` };
+  }
+  if (resp.ok && data) {
+    const text = Array.isArray(data.content) ? data.content.filter((b: any) => b?.type === "text").map((b: any) => b.text || "").join("") : "";
+    data = { id: data.id, object: "chat.completion", created: Date.now(), model: data.model || opts.model, choices: [{ index: 0, message: { role: "assistant", content: text }, finish_reason: data.stop_reason || "stop" }], usage: data.usage ? { prompt_tokens: data.usage.input_tokens, completion_tokens: data.usage.output_tokens, total_tokens: (data.usage.input_tokens || 0) + (data.usage.output_tokens || 0) } : undefined };
+  }
+  return { ok: resp.ok, status: resp.status, data };
+}
+
+async function relayChatCompletion(opts: { baseUrl: string; apiKey: string; model: string; messages: any[]; maxTokens: number; temperature: number; native?: string }): Promise<{ ok: boolean; status: number; data: any }> {
+  if (opts.native === "anthropic") return relayAnthropicLocal(opts);
   let resp: Response;
   try {
     resp = await fetch(`${opts.baseUrl.replace(/\/+$/, "")}/chat/completions`, {
@@ -252,10 +359,10 @@ async function resolveKeyPool(
   req: any,
   body: any,
   providerId: string
-): Promise<{ keys: string[]; error?: string }> {
+): Promise<{ keys: PoolItemLocal[]; error?: string }> {
   const keys = collectRelayKeys(req, body);
   const maybeMaster =
-    keys.find((k) => k.startsWith(MASTER_PREFIX)) ||
+    keys.find((k) => k.key.startsWith(MASTER_PREFIX))?.key ||
     (typeof body.masterKey === "string" && body.masterKey.trim().startsWith(MASTER_PREFIX) ? body.masterKey.trim() : "");
   if (!maybeMaster) return { keys };
   let payload: any;
@@ -271,7 +378,7 @@ async function resolveKeyPool(
     return { keys: [], error: "Ye master key revoke (delete) ho chuki hai — nayi generate karo." };
   }
   // Universal: saare pools flatten (universal first, then legacy ids for old masters)
-  const out: string[] = [];
+  const out: PoolItemLocal[] = [];
   const seen = new Set<string>();
   const take = (arr: any) => {
     if (!Array.isArray(arr)) return;
@@ -279,7 +386,13 @@ async function resolveKeyPool(
       const k = typeof e === "string" ? e : e?.k;
       if (typeof k === "string" && k.trim() && !seen.has(k.trim())) {
         seen.add(k.trim());
-        out.push(k.trim());
+        const u = typeof e?.u === "string" ? e.u : "";
+        const item: PoolItemLocal = { key: k.trim(), hint: effectiveLocal(k.trim(), u) };
+        const b = typeof e?.b === "string" ? e.b.trim().replace(/\/+$/, "") : "";
+        if (b && isAllowedUpstream(b)) item.base = b;
+        const m = typeof e?.m === "string" ? e.m.trim().slice(0, 120) : "";
+        if (m) item.aff = m;
+        out.push(item);
       }
     });
   };
@@ -327,11 +440,31 @@ const UNIVERSAL_MODELS_LOCAL: { id: string; upstream: string }[] = [
   { id: "llama-3.3-70b-versatile", upstream: "prov-groq" },
   { id: "mixtral-8x7b-32768", upstream: "prov-groq" },
   { id: "gemma2-9b-it", upstream: "prov-groq" },
+  { id: "llama-3.1-8b-instant", upstream: "prov-groq" },
   { id: "google/gemma-4-31b-it:free", upstream: "prov-openrouter" },
   { id: "nex-agi/nex-n2.5-mini:free", upstream: "prov-openrouter" },
   { id: "liquid/lfm-2.5-2.6b:free", upstream: "prov-openrouter" },
   { id: "llama-3.3-70b", upstream: "prov-cerebras" },
   { id: "llama3.1-8b", upstream: "prov-cerebras" },
+  { id: "gpt-4o-mini", upstream: "prov-openai" },
+  { id: "gpt-4o", upstream: "prov-openai" },
+  { id: "o1-mini", upstream: "prov-openai" },
+  { id: "claude-3-5-haiku-latest", upstream: "prov-anthropic" },
+  { id: "claude-3-5-sonnet-latest", upstream: "prov-anthropic" },
+  { id: "deepseek-chat", upstream: "prov-deepseek" },
+  { id: "deepseek-reasoner", upstream: "prov-deepseek" },
+  { id: "mistral-small-latest", upstream: "prov-mistral" },
+  { id: "open-mistral-7b", upstream: "prov-mistral" },
+  { id: "grok-3-mini", upstream: "prov-xai" },
+  { id: "sonar", upstream: "prov-perplexity" },
+  { id: "meta-llama/Llama-3.3-70B-Instruct-Turbo", upstream: "prov-together" },
+  { id: "accounts/fireworks/models/llama-v3p1-8b-instruct", upstream: "prov-fireworks" },
+  { id: "Qwen/Qwen2.5-7B-Instruct", upstream: "prov-siliconflow" },
+  { id: "meta-llama/llama-3.1-8b-instruct", upstream: "prov-novita" },
+  { id: "meta-llama/Meta-Llama-3.1-8B-Instruct", upstream: "prov-hyperbolic" },
+  { id: "deepseek-ai/DeepSeek-V3", upstream: "prov-chutes" },
+  { id: "hf:meta-llama/Llama-3.3-70B-Instruct", upstream: "prov-glhf" },
+  { id: "command-r-plus", upstream: "prov-cohere" },
 ];
 
 app.get("/api/v1/models", (req, res) => {
@@ -429,7 +562,9 @@ CRITICAL IDENTITY & CONTEXT AWARENESS (WHERE YOU ARE & WHAT YOU ARE IN):
    - Edge Tester: Interactive playground where you or the user can dispatch test prompts through the edge router, measuring TTFT (time to first token), total latency, and tokens/sec.
    - Daily Quota & Cost Tracker: Real-time request and token consumption meters, cost tracking, and reset buttons.
    - Telemetry & Logs: Performance charts, p95/p99 latency distribution, and regional health metrics.
-   - Worker Exporter & Proxy Key: Generates Cloudflare Worker code and secure Edge Proxy API keys (sk-er-live-...) for external applications.
+   - CONNECT (your own AI provider): Generates the user's UNIQUE master key (er1...) that works as their own provider in Claude Code (ANTHROPIC_BASE_URL=<host>/api/anthropic), OpenCode, Cline, Continue, Cursor, curl, Python, Node. Also manages CUSTOM ENDPOINTS (user's own OpenAI-compat base URL + key + model) and Cloudflare Worker self-host code.
+   - API Monitor: Live per-key health dashboard — which key is WORKING / EXHAUSTED (429 cooldown) / DEAD, per-key latency + test buttons. 18 providers supported (Gemini, Groq, OpenRouter, Cerebras, OpenAI, Anthropic, DeepSeek, Mistral, xAI, Perplexity, Together, Fireworks, SiliconFlow, Novita, Hyperbolic, Chutes, GLHF, Cohere) with smart auto-rotation.
+   - API Monitor: Live per-key health dashboard — which key is WORKING / EXHAUSTED (429 cooldown) / DEAD, per-key latency + test buttons. 18 providers supported (Gemini, Groq, OpenRouter, Cerebras, OpenAI, Anthropic, DeepSeek, Mistral, xAI, Perplexity, Together, Fireworks, SiliconFlow, Novita, Hyperbolic, Chutes, GLHF, Cohere) with smart auto-rotation.
 
 4. WHO ARE YOU & WHAT ARE YOUR CAPABILITIES? (Tum kya kar sakte ho?)
    You have 100% FULL ADMINISTRATIVE ROOT CONTROL over this entire Edge Router! You are NOT a detached external chatbot — you are the master controller of this application.
@@ -501,7 +636,7 @@ Whenever the user asks you to configure, add, update, switch, or optimize anythi
 
 7. NAVIGATION & KEYS:
    - Switch View Tab:
-     [ACTION:SWITCH_TAB:dashboard] (Options: dashboard, tester, quota, telemetry, export)
+     [ACTION:SWITCH_TAB:dashboard] (Options: dashboard, tester, quota, telemetry, export, monitor)
    - Generate New Edge Router Proxy Key:
      [ACTION:GENERATE_PROXY_KEY]
 
@@ -630,27 +765,35 @@ app.post("/api/router/inference", async (req, res) => {
 
     const wanted = wantedModelUniversal(model, "gemini-flash-latest");
     const target = custom.baseUrl ? null : upstreamForModel(wanted);
-    const ordered = custom.baseUrl ? keys : orderKeysForUpstream(keys, target);
+    const ordered = custom.baseUrl ? keys : orderPoolLocal(keys, target, wanted);
     const retryable = (st: number) =>
       [401, 403, 429, 500, 502, 503, 504].includes(st) || (!target && !custom.baseUrl && [400, 404].includes(st));
     const deadKeyPrefixes: string[] = [];
+    const rateLimitedPrefixes: string[] = [];
     let lastErr = "unknown error";
     for (let i = 0; i < ordered.length; i++) {
-      const upId = custom.baseUrl ? "custom" : detectKeyUpstream(ordered[i]);
-      const up = custom.baseUrl ? { name: "Custom", baseUrl: custom.baseUrl } : UPSTREAMS[upId === "unknown" ? target || "prov-gemini" : upId];
+      const itemBase = !custom.baseUrl && ordered[i].base ? ordered[i].base : null;
+      const effHint = custom.baseUrl || itemBase ? "custom" : ordered[i].hint;
+      const served = custom.baseUrl || itemBase ? "custom" : effHint === "unknown" ? target || "prov-gemini" : effHint;
+      const up: any = custom.baseUrl ? { name: "Custom", baseUrl: custom.baseUrl } : itemBase ? { name: "Custom", baseUrl: itemBase } : UPSTREAMS[served];
+      const kh = keyHashLocal(ordered[i].key);
+      keyLastUsedLocal.set(kh, Date.now());
       const r = await relayChatCompletion({
         baseUrl: up.baseUrl,
-        apiKey: ordered[i],
+        apiKey: ordered[i].key,
         model: wanted,
         messages: [{ role: "user", content: prompt }],
         maxTokens: 600,
         temperature: 0.7,
+        native: itemBase ? undefined : up.native,
       });
       if (r.ok && r.data?.choices?.[0]) {
+        keyCooldownUntilLocal.delete(kh);
+        keyFail429Local.delete(kh);
+        keyFailOtherLocal.delete(kh);
         const latencyMs = Date.now() - startTime;
         const text = r.data.choices[0].message?.content || "OK";
         const tokens = r.data.usage?.total_tokens || Math.max(15, Math.ceil(text.length / 4) + Math.ceil(prompt.length / 4));
-        const served = custom.baseUrl ? "custom" : upId === "unknown" ? target || "prov-gemini" : upId;
         res.setHeader("X-Edge-Provider", "Edge Router");
         res.setHeader("X-Edge-Upstream", served);
         res.setHeader("X-Edge-Key-Index", String(i));
@@ -663,17 +806,27 @@ app.post("/api/router/inference", async (req, res) => {
           providerName: up.name,
           upstreamId: served,
           keyIndex: i,
-          key_prefix: typeof ordered[i] === "string" ? ordered[i].slice(0, 8) : "",
+          key_prefix: ordered[i].key.slice(0, 8),
           dead_key_prefixes: deadKeyPrefixes,
+          rate_limited_prefixes: rateLimitedPrefixes,
           latencyMs,
           tokens,
         });
       }
       lastErr = r.data?.error?.message || r.data?.message || `Upstream HTTP ${r.status}`;
-      if (r.status === 401 || r.status === 403) deadKeyPrefixes.push(ordered[i].slice(0, 8));
+      if (r.status === 429) {
+        keyCooldownUntilLocal.set(kh, Date.now() + COOLDOWN_MS_LOCAL);
+        keyFail429Local.set(kh, (keyFail429Local.get(kh) || 0) + 1);
+        rateLimitedPrefixes.push(ordered[i].key.slice(0, 8));
+      } else if (r.status === 401 || r.status === 403) {
+        keyFailOtherLocal.set(kh, (keyFailOtherLocal.get(kh) || 0) + 1);
+        if (effHint === served && served !== "unknown") deadKeyPrefixes.push(ordered[i].key.slice(0, 8));
+      } else {
+        keyFailOtherLocal.set(kh, (keyFailOtherLocal.get(kh) || 0) + 1);
+      }
       if (!retryable(r.status)) break;
     }
-    return res.status(502).json({ error: `${lastErr} (${ordered.length} keys tried)`, dead_key_prefixes: deadKeyPrefixes });
+    return res.status(502).json({ error: `${lastErr} (${ordered.length} keys tried)`, dead_key_prefixes: deadKeyPrefixes, rate_limited_prefixes: rateLimitedPrefixes });
   } catch (err: any) {
     console.error("Inference route error:", err);
     const latencyMs = Date.now() - startTime;
@@ -712,7 +865,7 @@ app.post("/api/v1/chat/completions", async (req, res) => {
 
     const wanted = wantedModelUniversal(model, "gemini-flash-latest");
     const target = custom.baseUrl ? null : upstreamForModel(wanted);
-    const ordered = custom.baseUrl ? keys : orderKeysForUpstream(keys, target);
+    const ordered = custom.baseUrl ? keys : orderPoolLocal(keys, target, wanted);
     const openaiMessages = messages.map((m: any) => ({
       role: m.role === "system" || m.role === "assistant" || m.role === "user" ? m.role : "user",
       content: typeof m.content === "string" ? m.content : "",
@@ -723,11 +876,19 @@ app.post("/api/v1/chat/completions", async (req, res) => {
     let lastErr = "unknown error";
     const deadKeyIndexes: number[] = [];
     const deadKeyPrefixes: string[] = [];
+    const rateLimitedPrefixes: string[] = [];
     for (let i = 0; i < ordered.length; i++) {
-      const upId = custom.baseUrl ? "custom" : detectKeyUpstream(ordered[i]);
-      const up = custom.baseUrl ? { name: "Custom", baseUrl: custom.baseUrl } : UPSTREAMS[upId === "unknown" ? target || "prov-gemini" : upId];
-      const r = await relayChatCompletion({ baseUrl: up.baseUrl, apiKey: ordered[i], model: wanted, messages: openaiMessages, maxTokens: max_tokens, temperature });
+      const itemBase = !custom.baseUrl && ordered[i].base ? ordered[i].base : null;
+      const effHint = custom.baseUrl || itemBase ? "custom" : ordered[i].hint;
+      const served = custom.baseUrl || itemBase ? "custom" : effHint === "unknown" ? target || "prov-gemini" : effHint;
+      const up: any = custom.baseUrl ? { name: "Custom", baseUrl: custom.baseUrl } : itemBase ? { name: "Custom", baseUrl: itemBase } : UPSTREAMS[served];
+      const kh = keyHashLocal(ordered[i].key);
+      keyLastUsedLocal.set(kh, Date.now());
+      const r = await relayChatCompletion({ baseUrl: up.baseUrl, apiKey: ordered[i].key, model: wanted, messages: openaiMessages, maxTokens: max_tokens, temperature, native: itemBase ? undefined : up.native });
       if (r.ok) {
+        keyCooldownUntilLocal.delete(kh);
+        keyFail429Local.delete(kh);
+        keyFailOtherLocal.delete(kh);
         const latencyMs = Date.now() - startTime;
         const d = r.data || {};
         const choice = d.choices?.[0];
@@ -735,7 +896,6 @@ app.post("/api/v1/chat/completions", async (req, res) => {
         const usage = d.usage || {};
         const promptTokens = usage.prompt_tokens ?? openaiMessages.reduce((acc: number, m: any) => acc + Math.ceil((m.content || "").length / 4), 0);
         const completionTokens = usage.completion_tokens ?? Math.ceil(responseText.length / 4);
-        const served = custom.baseUrl ? "custom" : upId === "unknown" ? target || "prov-gemini" : upId;
         res.setHeader("X-Edge-Provider", "Edge Router");
         res.setHeader("X-Edge-Upstream", served);
         res.setHeader("X-Edge-Key-Index", String(i));
@@ -765,19 +925,29 @@ app.post("/api/v1/chat/completions", async (req, res) => {
             provider_id: "Edge Router",
             upstream_id: served,
             key_index: i,
-            key_prefix: typeof ordered[i] === "string" ? ordered[i].slice(0, 8) : "",
+            key_prefix: ordered[i].key.slice(0, 8),
             keys_tried: i + 1,
             dead_key_indexes: deadKeyIndexes,
             dead_key_prefixes: deadKeyPrefixes,
+            rate_limited_prefixes: rateLimitedPrefixes,
             latency_ms: latencyMs,
             status: "200 OK",
           },
         });
       }
       lastErr = r.data?.error?.message || r.data?.message || `Upstream HTTP ${r.status}`;
-      if ((r.status === 401 || r.status === 403) && typeof ordered[i] === "string") {
-        deadKeyIndexes.push(i);
-        deadKeyPrefixes.push(ordered[i].slice(0, 8));
+      if (r.status === 429) {
+        keyCooldownUntilLocal.set(kh, Date.now() + COOLDOWN_MS_LOCAL);
+        keyFail429Local.set(kh, (keyFail429Local.get(kh) || 0) + 1);
+        rateLimitedPrefixes.push(ordered[i].key.slice(0, 8));
+      } else if (r.status === 401 || r.status === 403) {
+        keyFailOtherLocal.set(kh, (keyFailOtherLocal.get(kh) || 0) + 1);
+        if (effHint === served && served !== "unknown") {
+          deadKeyIndexes.push(i);
+          deadKeyPrefixes.push(ordered[i].key.slice(0, 8));
+        }
+      } else {
+        keyFailOtherLocal.set(kh, (keyFailOtherLocal.get(kh) || 0) + 1);
       }
       if (!retryable(r.status)) break;
     }
@@ -788,6 +958,7 @@ app.post("/api/v1/chat/completions", async (req, res) => {
         type: "upstream_error",
         dead_key_indexes: deadKeyIndexes,
         dead_key_prefixes: deadKeyPrefixes,
+        rate_limited_prefixes: rateLimitedPrefixes,
       },
     });
   } catch (err: any) {
@@ -801,10 +972,344 @@ app.post("/api/v1/chat/completions", async (req, res) => {
   }
 });
 
+// ---- Anthropic-compatible Messages API (Claude Code) — parity with api/anthropic/v1/messages.ts ----
+function anthBlocksToText(blocks: any[]): string {
+  return (blocks || []).filter((b) => b?.type === "text" && typeof b.text === "string").map((b) => b.text).join("");
+}
+
+function anthToOpenAIMessages(system: any, messages: any[]): any[] {
+  const sys = typeof system === "string" ? system : Array.isArray(system) ? anthBlocksToText(system) : "";
+  const msgs: any[] = [];
+  for (const m of messages || []) {
+    const role = m?.role === "assistant" ? "assistant" : "user";
+    const c = m?.content;
+    if (typeof c === "string") { msgs.push({ role, content: c }); continue; }
+    if (!Array.isArray(c)) continue;
+    const texts: string[] = [];
+    const images: any[] = [];
+    const toolResults: any[] = [];
+    const toolUses: any[] = [];
+    for (const b of c) {
+      if (!b || typeof b !== "object") continue;
+      if (b.type === "text" && typeof b.text === "string") texts.push(b.text);
+      else if (b.type === "image" && b.source?.type === "base64" && b.source?.data) {
+        const mt = typeof b.source.media_type === "string" ? b.source.media_type : "image/jpeg";
+        images.push({ type: "image_url", image_url: { url: `data:${mt};base64,${b.source.data}` } });
+      } else if (b.type === "tool_result") toolResults.push(b);
+      else if (b.type === "tool_use") toolUses.push(b);
+    }
+    if (role === "assistant") {
+      const content = texts.join("");
+      const tool_calls = toolUses.map((t) => ({
+        id: typeof t.id === "string" ? t.id : `call_${Math.random().toString(36).slice(2)}`,
+        type: "function",
+        function: { name: typeof t.name === "string" ? t.name : "tool", arguments: typeof t.input === "string" ? t.input : JSON.stringify(t.input ?? {}) },
+      }));
+      if (content || tool_calls.length > 0) msgs.push({ role: "assistant", content, ...(tool_calls.length > 0 ? { tool_calls } : {}) });
+    } else {
+      if (texts.length > 0 || images.length > 0) {
+        if (images.length > 0) {
+          const parts: any[] = [];
+          if (texts.length > 0) parts.push({ type: "text", text: texts.join("") });
+          parts.push(...images);
+          msgs.push({ role: "user", content: parts });
+        } else msgs.push({ role: "user", content: texts.join("") });
+      }
+      for (const tr of toolResults) {
+        const tcId = typeof tr.tool_use_id === "string" ? tr.tool_use_id : "unknown";
+        const cc = tr.content;
+        const text = typeof cc === "string" ? cc : Array.isArray(cc) ? anthBlocksToText(cc) : JSON.stringify(cc ?? "");
+        msgs.push({ role: "tool", tool_call_id: tcId, content: (tr.is_error ? "Error: " : "") + text });
+      }
+    }
+  }
+  if (sys) msgs.unshift({ role: "system", content: sys });
+  if (msgs.length === 0) msgs.push({ role: "user", content: "hi" });
+  return msgs;
+}
+
+function anthToOpenAITools(tools: any): any[] | undefined {
+  if (!Array.isArray(tools) || tools.length === 0) return undefined;
+  const out: any[] = [];
+  for (const t of tools) {
+    if (!t || typeof t.name !== "string") continue;
+    out.push({ type: "function", function: { name: t.name, description: typeof t.description === "string" ? t.description : "", parameters: t.input_schema && typeof t.input_schema === "object" ? t.input_schema : { type: "object", properties: {} } } });
+  }
+  return out.length > 0 ? out : undefined;
+}
+
+function anthToolChoice(tc: any): any {
+  if (!tc || tc.type === "auto") return "auto";
+  if (tc.type === "any") return "required";
+  if (tc.type === "tool" && typeof tc.name === "string") return { type: "function", function: { name: tc.name } };
+  return "auto";
+}
+
+function anthFinishToStop(fr: string | undefined, hasTools: boolean): string {
+  if (fr === "length") return "max_tokens";
+  if (fr === "tool_calls" || hasTools) return "tool_use";
+  return "end_turn";
+}
+
+function anthMsgToBlocks(msg: any): { blocks: any[]; hasTools: boolean } {
+  const blocks: any[] = [];
+  const text = typeof msg?.content === "string" ? msg.content : "";
+  if (text) blocks.push({ type: "text", text });
+  let hasTools = false;
+  if (Array.isArray(msg?.tool_calls)) {
+    for (const tc of msg.tool_calls) {
+      if (tc?.type !== "function" && tc?.type !== undefined) continue;
+      hasTools = true;
+      let input: any = {};
+      try { input = JSON.parse(tc.function?.arguments || "{}"); } catch { input = {}; }
+      blocks.push({ type: "tool_use", id: tc.id || `toolu_${Math.random().toString(36).slice(2)}`, name: tc.function?.name || "tool", input });
+    }
+  }
+  if (blocks.length === 0) blocks.push({ type: "text", text: "" });
+  return { blocks, hasTools };
+}
+
+function orderPoolAnthropicLocal(pool: PoolItemLocal[]): PoolItemLocal[] {
+  const now = Date.now();
+  const bucket = (p: PoolItemLocal): number => {
+    if (p.hint === "prov-anthropic") return 0;
+    if (p.hint === "unknown") return 1;
+    const i = UPSTREAM_PRIORITY.indexOf(p.hint);
+    return 2 + (i === -1 ? 50 : i);
+  };
+  return [...pool].map((p, idx) => ({ p, idx })).sort((a, b) => {
+    const ba = bucket(a.p), bb = bucket(b.p);
+    if (ba !== bb) return ba - bb;
+    const ca = (keyCooldownUntilLocal.get(keyHashLocal(a.p.key)) || 0) > now ? 1 : 0;
+    const cb = (keyCooldownUntilLocal.get(keyHashLocal(b.p.key)) || 0) > now ? 1 : 0;
+    if (ca !== cb) return ca - cb;
+    const fa = (keyFail429Local.get(keyHashLocal(a.p.key)) || 0) * 3 + (keyFailOtherLocal.get(keyHashLocal(a.p.key)) || 0);
+    const fb = (keyFail429Local.get(keyHashLocal(b.p.key)) || 0) * 3 + (keyFailOtherLocal.get(keyHashLocal(b.p.key)) || 0);
+    if (fa !== fb) return fa - fb;
+    const la = keyLastUsedLocal.get(keyHashLocal(a.p.key)) || 0, lb = keyLastUsedLocal.get(keyHashLocal(b.p.key)) || 0;
+    if (la !== lb) return la - lb;
+    return a.idx - b.idx;
+  }).map((e) => e.p);
+}
+
+app.post("/api/anthropic/v1/messages", async (req, res) => {
+  const anthErr = (status: number, message: string, type = "api_error") =>
+    res.status(status).json({ type: "error", error: { type, message: String(message || "error").slice(0, 500) } });
+  try {
+    const body = req.body || {};
+    const model = typeof body.model === "string" && body.model ? body.model : "claude-3-5-haiku-latest";
+    const messages = Array.isArray(body.messages) ? body.messages : [];
+    if (messages.length === 0) return anthErr(400, "messages: must not be empty", "invalid_request_error");
+    const maxTokens = Math.max(1, Math.min(typeof body.max_tokens === "number" ? body.max_tokens : 1024, 8192));
+    const temperature = typeof body.temperature === "number" ? body.temperature : 0.7;
+    const wantStream = body.stream === true;
+    const stopSequences: string[] = Array.isArray(body.stop_sequences) ? body.stop_sequences.filter((s: any) => typeof s === "string").slice(0, 4) : [];
+
+    const rawPool = collectRelayKeys(req, body);
+    if (typeof body.masterKey === "string" && body.masterKey.trim().startsWith(MASTER_PREFIX) && !rawPool.some((p) => p.key.startsWith(MASTER_PREFIX))) {
+      rawPool.push({ key: body.masterKey.trim(), hint: "unknown" });
+    }
+    // Master wins: reuse the same flatten path as the gateways.
+    let effPool = rawPool;
+    const maybeMaster = rawPool.find((p) => p.key.startsWith(MASTER_PREFIX))?.key || "";
+    if (maybeMaster) {
+      const resolved = await resolveKeyPool(req, { ...body, apiKeys: [maybeMaster] }, "Edge Router");
+      if (resolved.keys.length === 0) return anthErr(401, resolved.error || "Master key invalid hai.", "authentication_error");
+      effPool = resolved.keys;
+    }
+    if (effPool.length === 0) return anthErr(401, "API key dalo: ANTHROPIC_API_KEY me apni er1 master key rakho.", "authentication_error");
+
+    const msgs = anthToOpenAIMessages(body.system, messages);
+    const oaiTools = anthToOpenAITools(body.tools);
+    const oaiToolChoice = oaiTools ? anthToolChoice(body.tool_choice) : undefined;
+    const ordered = orderPoolAnthropicLocal(effPool);
+    const msgId = `msg_router${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
+    let lastErr = "unknown error";
+    let lastStatus = 502;
+
+    for (let i = 0; i < ordered.length; i++) {
+      const item = ordered[i];
+      const itemBase = item.base || null;
+      const servedId = itemBase ? "custom" : item.hint === "unknown" ? "prov-anthropic" : item.hint;
+      const isNative = !itemBase && servedId === "prov-anthropic";
+      const serveModel = itemBase ? model : isNative ? model : (model.startsWith("claude-") ? (UPSTREAMS[servedId]?.defaultModel || model) : model);
+      const h = keyHashLocal(item.key);
+      keyLastUsedLocal.set(h, Date.now());
+      try {
+        if (isNative) {
+          const fwd: any = { model, max_tokens: maxTokens, messages, temperature, ...(wantStream ? { stream: true } : {}) };
+          if (typeof body.system !== "undefined") fwd.system = body.system;
+          if (Array.isArray(body.tools)) fwd.tools = body.tools;
+          if (typeof body.tool_choice !== "undefined") fwd.tool_choice = body.tool_choice;
+          if (stopSequences.length > 0) fwd.stop_sequences = stopSequences;
+          const beta = typeof req.headers["anthropic-beta"] === "string" ? req.headers["anthropic-beta"] : "";
+          const resp = await fetch("https://api.anthropic.com/v1/messages", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "x-api-key": item.key, "anthropic-version": "2023-06-01", ...(beta ? { "anthropic-beta": beta } : {}) },
+            body: JSON.stringify(fwd),
+          });
+          if (resp.ok) {
+            if (wantStream && resp.body) {
+              res.writeHead(200, { "Content-Type": "text/event-stream", "Cache-Control": "no-cache, no-transform", Connection: "keep-alive", "X-Edge-Upstream": "prov-anthropic" });
+              const reader = resp.body.getReader();
+              const dec = new TextDecoder();
+              try {
+                for (;;) {
+                  const { done, value } = await reader.read();
+                  if (done) break;
+                  res.write(dec.decode(value, { stream: true }));
+                }
+              } finally { try { reader.releaseLock(); } catch {} }
+              return res.end();
+            }
+            const data: any = await resp.json().catch(() => null);
+            res.setHeader("X-Edge-Upstream", "prov-anthropic");
+            return res.json(data);
+          }
+          const edata: any = await resp.json().catch(() => null);
+          lastErr = edata?.error?.message || `Anthropic HTTP ${resp.status}`;
+          lastStatus = resp.status;
+          if (resp.status === 429) {
+            keyCooldownUntilLocal.set(h, Date.now() + COOLDOWN_MS_LOCAL);
+            keyFail429Local.set(h, (keyFail429Local.get(h) || 0) + 1);
+          } else {
+            keyFailOtherLocal.set(h, (keyFailOtherLocal.get(h) || 0) + 1);
+          }
+          if (![401, 403, 429, 500, 502, 503, 504].includes(resp.status)) break;
+          continue;
+        }
+        const base = itemBase || UPSTREAMS[servedId]?.baseUrl || UPSTREAMS["prov-gemini"].baseUrl;
+        const oaiBody: any = {
+          model: serveModel, messages: msgs, max_tokens: maxTokens, temperature,
+          ...(oaiTools ? { tools: oaiTools, tool_choice: oaiToolChoice } : {}),
+          ...(stopSequences.length > 0 ? { stop: stopSequences } : {}),
+          ...(wantStream ? { stream: true } : {}),
+        };
+        const resp = await fetch(`${base.replace(/\/+$/, "")}/chat/completions`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${item.key}`, "HTTP-Referer": "https://edge-ai-router.vercel.app", "X-Title": "Edge Router" },
+          body: JSON.stringify(oaiBody),
+        });
+        if (!resp.ok) {
+          const edata: any = await resp.json().catch(() => null);
+          lastErr = edata?.error?.message || edata?.message || `Upstream HTTP ${resp.status}`;
+          lastStatus = resp.status;
+          if (resp.status === 429) {
+            keyCooldownUntilLocal.set(h, Date.now() + COOLDOWN_MS_LOCAL);
+            keyFail429Local.set(h, (keyFail429Local.get(h) || 0) + 1);
+          } else {
+            keyFailOtherLocal.set(h, (keyFailOtherLocal.get(h) || 0) + 1);
+          }
+          const nativeMatch = serveModel === model;
+          const retryable = [401, 403, 429, 500, 502, 503, 504].includes(resp.status) || (!nativeMatch && [400, 404].includes(resp.status));
+          if (!retryable) break;
+          continue;
+        }
+        if (!wantStream || !resp.body) {
+          const d: any = await resp.json().catch(() => null);
+          const choice = d?.choices?.[0];
+          const { blocks, hasTools } = anthMsgToBlocks(choice?.message || {});
+          const usage = d?.usage || {};
+          res.setHeader("X-Edge-Upstream", servedId);
+          res.setHeader("X-Edge-Model", serveModel);
+          return res.json({
+            id: msgId, type: "message", role: "assistant", content: blocks, model,
+            stop_reason: anthFinishToStop(choice?.finish_reason, hasTools),
+            usage: { input_tokens: usage.prompt_tokens ?? 0, output_tokens: usage.completion_tokens ?? 0 },
+          });
+        }
+        res.writeHead(200, { "Content-Type": "text/event-stream", "Cache-Control": "no-cache, no-transform", Connection: "keep-alive", "X-Edge-Upstream": servedId, "X-Edge-Model": serveModel });
+        const send = (obj: any) => res.write(`event: ${obj.type}\ndata: ${JSON.stringify(obj)}\n\n`);
+        send({ type: "message_start", message: { id: msgId, type: "message", role: "assistant", content: [], model, stop_reason: null, usage: { input_tokens: 0, output_tokens: 0 } } });
+        let textOpen = false;
+        let toolIdx = -1;
+        let toolName = "";
+        let toolOpen = false;
+        let outTokens = 0;
+        let finishReason = "stop";
+        const openText = () => {
+          if (textOpen) return;
+          if (toolOpen) { send({ type: "content_block_stop", index: toolIdx }); toolOpen = false; }
+          send({ type: "content_block_start", index: 0, content_block: { type: "text", text: "" } });
+          textOpen = true;
+        };
+        const reader = resp.body.getReader();
+        const dec = new TextDecoder();
+        let buf = "";
+        const flushBlock = (raw: string) => {
+          for (const ln of raw.split("\n")) {
+            const line = ln.trim();
+            if (!line.startsWith("data:")) continue;
+            const payload = line.slice(5).trim();
+            if (!payload || payload === "[DONE]") continue;
+            let j: any = null;
+            try { j = JSON.parse(payload); } catch { continue; }
+            const delta = j?.choices?.[0]?.delta;
+            const fr = j?.choices?.[0]?.finish_reason;
+            if (fr) finishReason = fr;
+            if (typeof delta?.content === "string" && delta.content) {
+              openText();
+              outTokens += Math.max(1, Math.ceil(delta.content.length / 4));
+              send({ type: "content_block_delta", index: 0, delta: { type: "text_delta", text: delta.content } });
+            }
+            const tcs = Array.isArray(delta?.tool_calls) ? delta.tool_calls : [];
+            for (const tc of tcs) {
+              const idx = typeof tc.index === "number" ? tc.index : 0;
+              if (!toolOpen || idx !== toolIdx) {
+                if (textOpen) { send({ type: "content_block_stop", index: 0 }); textOpen = false; }
+                if (toolOpen) { send({ type: "content_block_stop", index: toolIdx }); }
+                toolIdx = 1 + idx;
+                toolName = tc.function?.name || toolName || "tool";
+                send({ type: "content_block_start", index: toolIdx, content_block: { type: "tool_use", id: tc.id || `toolu_${Math.random().toString(36).slice(2)}`, name: toolName, input: {} } });
+                toolOpen = true;
+              }
+              if (tc.function?.name) toolName = tc.function.name;
+              const args = typeof tc.function?.arguments === "string" ? tc.function.arguments : "";
+              if (args) send({ type: "content_block_delta", index: toolIdx, delta: { type: "input_json_delta", partial_json: args } });
+            }
+            const usage = j?.usage;
+            if (usage && typeof usage.completion_tokens === "number") outTokens = usage.completion_tokens;
+          }
+        };
+        try {
+          for (;;) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            buf += dec.decode(value, { stream: true });
+            const parts = buf.split("\n\n");
+            buf = parts.pop() || "";
+            for (const p of parts) flushBlock(p);
+          }
+          if (buf.trim()) flushBlock(buf);
+        } finally { try { reader.releaseLock(); } catch {} }
+        if (textOpen) send({ type: "content_block_stop", index: 0 });
+        if (toolOpen) send({ type: "content_block_stop", index: toolIdx });
+        if (!textOpen && !toolOpen) {
+          send({ type: "content_block_start", index: 0, content_block: { type: "text", text: "" } });
+          send({ type: "content_block_stop", index: 0 });
+        }
+        send({ type: "message_delta", delta: { stop_reason: anthFinishToStop(finishReason, toolIdx >= 0) }, usage: { output_tokens: outTokens } });
+        send({ type: "message_stop" });
+        return res.end();
+      } catch (e: any) {
+        lastErr = `Upstream unreachable: ${e?.message || e}`;
+        lastStatus = 502;
+        keyFailOtherLocal.set(h, (keyFailOtherLocal.get(h) || 0) + 1);
+        continue;
+      }
+    }
+    const type = lastStatus === 401 ? "authentication_error" : lastStatus === 429 ? "rate_limit_error" : lastStatus === 404 ? "not_found_error" : "api_error";
+    return anthErr(lastStatus === 401 || lastStatus === 429 || lastStatus === 404 ? lastStatus : 502, `${lastErr} (${ordered.length} keys tried)`, type);
+  } catch (err: any) {
+    console.error("anthropic/messages error:", err);
+    return anthErr(500, err?.message || "messages failed");
+  }
+});
+
 // ---- Master key issue/status/revoke (local-dev parity with api/keys/*) ----
 const MASTER_TTL_MS = 90 * 86400 * 1000;
-const MAX_KEYS_PER_PROVIDER = 20;
-const MAX_KEYS_TOTAL = 80;
+const MAX_KEYS_PER_PROVIDER = 30;
+const MAX_KEYS_TOTAL = 120;
 
 function masterEncryptLocal(payload: any): string {
   const raw = deflateSync(Buffer.from(JSON.stringify(payload), "utf8"));
@@ -849,17 +1354,23 @@ app.post("/api/keys/issue", async (req, res) => {
     const input = body.keys && typeof body.keys === "object" ? body.keys : null;
     if (!input) return res.status(400).json({ error: "Missing keys object" });
     const label = typeof body.label === "string" ? body.label.slice(0, 40) : "";
-    const pools: Record<string, { k: string; g: string }[]> = {};
+    const pools: Record<string, { k: string; g: string; u?: string; b?: string; m?: string }[]> = {};
     let total = 0;
     for (const pid of Object.keys(input)) {
       if (!Array.isArray(input[pid])) return res.status(400).json({ error: `keys['${pid}'] array honi chahiye` });
       if (input[pid].length > MAX_KEYS_PER_PROVIDER) return res.status(400).json({ error: `${pid}: max ${MAX_KEYS_PER_PROVIDER} keys per provider` });
-      const arr: { k: string; g: string }[] = [];
+      const arr: { k: string; g: string; u?: string; b?: string; m?: string }[] = [];
       for (const v of input[pid]) {
         const k = typeof v === "string" ? v.replace(/[\s'"`]+/g, "").trim() : typeof v?.k === "string" ? v.k.replace(/[\s'"`]+/g, "").trim() : "";
         if (k.length < 10) return res.status(400).json({ error: `${pid}: ek key bahut chhoti hai` });
         const rawG = typeof v?.g === "string" ? v.g.trim() : "";
-        arr.push({ k, g: /.+@.+\..{2,}/.test(rawG) ? rawG : "" });
+        const rawU = typeof v?.u === "string" ? v.u.trim() : "";
+        const rawB = typeof v?.b === "string" ? v.b.trim().replace(/\/+$/, "") : "";
+        const rawM = typeof v?.m === "string" ? v.m.trim().slice(0, 120) : "";
+        if (rawB && (rawB.length > 200 || !isAllowedUpstream(rawB))) {
+          return res.status(400).json({ error: `${pid}: custom base URL public https hona chahiye (${rawB.slice(0, 60)})` });
+        }
+        arr.push({ k, g: /.+@.+\..{2,}/.test(rawG) ? rawG : "", ...(rawU && KNOWN_UPSTREAMS_LOCAL.has(rawU) ? { u: rawU } : {}), ...(rawB ? { b: rawB } : {}), ...(rawM ? { m: rawM } : {}) });
         total++;
       }
       if (arr.length > 0) pools[pid] = arr;
@@ -873,7 +1384,9 @@ app.post("/api/keys/issue", async (req, res) => {
     for (const pid of Object.keys(pools)) {
       providers[pid] = { count: pools[pid].length, gmails: [...new Set(pools[pid].map((e) => e.g).filter(Boolean))] };
     }
-    return res.json({ masterKey, mid, label, expiresAt: exp, providers });
+    const resp: any = { masterKey, mid, label, expiresAt: exp, providers, tokenSize: masterKey.length };
+    if (masterKey.length > 7000) resp.sizeWarn = `Master token ${masterKey.length} chars ka hai (Vercel 4.5MB response limit OK, lekin header me mat bhejo — body.masterKey use karo).`;
+    return res.json(resp);
   } catch (err: any) {
     return res.status(500).json({ error: "Issue fail ho gaya" });
   }
@@ -900,6 +1413,55 @@ app.post("/api/keys/status", async (req, res) => {
     return res.json({ valid: true, mid: payload.mid || "", label: payload.label || "", expiresAt: payload.exp, providers });
   } catch {
     return res.status(500).json({ valid: false, error: "Status fail ho gaya" });
+  }
+});
+
+// Single-key live probe — local-dev parity with api/keys/test.ts (MONITOR tab).
+app.post("/api/keys/test", async (req, res) => {
+  const t0 = Date.now();
+  try {
+    const body = req.body || {};
+    const key = typeof body.key === "string" ? body.key.trim() : "";
+    if (!key || key.length < 10) return res.status(400).json({ ok: false, error: "key dalo (full key)" });
+    const hint = typeof body.upstream === "string" ? body.upstream.trim() : "";
+    const customBase = typeof body.baseUrl === "string" ? body.baseUrl.trim().replace(/\/+$/, "") : "";
+    const customModel = typeof body.model === "string" ? body.model.trim().slice(0, 120) : "";
+    if (customBase) {
+      if (customBase.length > 200 || !isAllowedUpstream(customBase)) {
+        return res.json({ ok: false, upstream: "custom", latencyMs: Date.now() - t0, error: "baseUrl public https hona chahiye." });
+      }
+      const model = customModel || "default";
+      try {
+        const rr2 = await Promise.race([
+          relayChatCompletion({ baseUrl: customBase, apiKey: key, model, messages: [{ role: "user", content: "ping" }], maxTokens: 5, temperature: 0 }),
+          new Promise<never>((_, rej) => setTimeout(() => { const e: any = new Error("timeout"); e.name = "AbortError"; rej(e); }, 25000)),
+        ]);
+        if (rr2.ok) return res.json({ ok: true, upstream: "custom", model, latencyMs: Date.now() - t0, prefix: key.slice(0, 8) });
+        const msg2 = rr2.data?.error?.message || rr2.data?.message || `HTTP ${rr2.status}`;
+        return res.json({ ok: false, upstream: "custom", model, latencyMs: Date.now() - t0, status: rr2.status, prefix: key.slice(0, 8), error: String(msg2).slice(0, 200) });
+      } catch (e: any) {
+        return res.json({ ok: false, upstream: "custom", model, latencyMs: Date.now() - t0, status: e?.name === "AbortError" ? "timeout" : "network", error: e?.name === "AbortError" ? "Timeout (25s)" : `Network: ${e?.message || e}` });
+      }
+    }
+    const upstream = hint && UPSTREAMS[hint] ? hint : detectKeyUpstream(key);
+    if (upstream === "unknown" || !UPSTREAMS[upstream]) {
+      return res.json({ ok: false, upstream: "unknown", latencyMs: Date.now() - t0, error: "Upstream pehchana nahi gaya — KEYS me is key pe provider tag select karo, fir test karo." });
+    }
+    const up = UPSTREAMS[upstream];
+    let rr: { ok: boolean; status: number; data: any };
+    try {
+      rr = await Promise.race([
+        relayChatCompletion({ baseUrl: up.baseUrl, apiKey: key, model: up.defaultModel, messages: [{ role: "user", content: "ping" }], maxTokens: 5, temperature: 0, native: up.native }),
+        new Promise<never>((_, rej) => setTimeout(() => { const e: any = new Error("timeout"); e.name = "AbortError"; rej(e); }, 25000)),
+      ]);
+    } catch (e: any) {
+      return res.json({ ok: false, upstream, model: up.defaultModel, latencyMs: Date.now() - t0, status: e?.name === "AbortError" ? "timeout" : "network", error: e?.name === "AbortError" ? "Timeout (25s)" : `Network: ${e?.message || e}` });
+    }
+    if (rr.ok) return res.json({ ok: true, upstream, model: up.defaultModel, latencyMs: Date.now() - t0, prefix: key.slice(0, 8) });
+    const msg = rr.data?.error?.message || rr.data?.message || `HTTP ${rr.status}`;
+    return res.json({ ok: false, upstream, model: up.defaultModel, latencyMs: Date.now() - t0, status: rr.status, prefix: key.slice(0, 8), error: String(msg).slice(0, 200) });
+  } catch (err: any) {
+    return res.status(500).json({ ok: false, error: err?.message || "Test fail", latencyMs: Date.now() - t0 });
   }
 });
 
@@ -1043,16 +1605,55 @@ app.post("/api/catalog/sync", async (req, res) => {
     const models = [...gemini.models, ...groq.models, ...openrouter.models, ...cerebras.models];
     const status = (r: { ok: boolean; models: any[]; error?: string }) =>
       r.ok ? { ok: true as const, count: r.models.length } : { ok: false as const, count: 0, error: r.error || "failed" };
-    return res.json({
-      syncedAt: Date.now(),
-      models,
-      perUpstream: {
-        "prov-gemini": status(gemini),
-        "prov-groq": status(groq),
-        "prov-openrouter": status(openrouter),
-        "prov-cerebras": status(cerebras),
-      },
-    });
+    // Generic OpenAI-compat providers
+    const shortOf = (up: string) => up.replace(/^prov-/, "");
+    const extraUps = Object.keys(UPSTREAMS).filter((u) => !["prov-gemini", "prov-groq", "prov-openrouter", "prov-cerebras", "prov-anthropic", "prov-perplexity"].includes(u));
+    const extras = await Promise.all(
+      extraUps.map(async (up) => {
+        const k = first(ink[shortOf(up)]);
+        if (!k) return { up, r: { ok: false as const, models: [] as any[], error: "no-key" } };
+        try {
+          const j: any = await catalogFetchJson(`${UPSTREAMS[up].baseUrl.replace(/\/+$/, "")}/models`, { Authorization: `Bearer ${k}` });
+          const arr = Array.isArray(j?.data) ? j.data : [];
+          const ms: any[] = [];
+          for (const m of arr) {
+            const id = typeof m?.id === "string" ? m.id : typeof m === "string" ? m : "";
+            if (!id || /whisper|embedding|tts|guard|moderation|dall-e|audit/i.test(id)) continue;
+            ms.push({ id, name: id, upstream: up });
+            if (ms.length >= 150) break;
+          }
+          return { up, r: { ok: true as const, models: ms } };
+        } catch (e: any) {
+          return { up, r: { ok: false as const, models: [] as any[], error: e?.name === "AbortError" ? "timeout" : e?.message || "fetch-failed" } };
+        }
+      })
+    );
+    extras.forEach((e) => models.push(...e.r.models));
+    const perUpstream: Record<string, any> = {
+      "prov-gemini": status(gemini),
+      "prov-groq": status(groq),
+      "prov-openrouter": status(openrouter),
+      "prov-cerebras": status(cerebras),
+    };
+    extras.forEach((e) => { perUpstream[e.up] = status(e.r); });
+    // Anthropic + Perplexity: no public /models — statics so switcher still works.
+    if (first(ink.anthropic)) {
+      ["claude-3-5-haiku-latest", "claude-3-5-sonnet-latest", "claude-3-haiku-20240307"].forEach((id) =>
+        models.push({ id, name: id, upstream: "prov-anthropic" })
+      );
+      perUpstream["prov-anthropic"] = { ok: true, count: 3 };
+    } else {
+      perUpstream["prov-anthropic"] = { ok: false, count: 0, error: "no-key" };
+    }
+    if (first(ink.perplexity)) {
+      ["sonar", "sonar-pro", "sonar-reasoning"].forEach((id) =>
+        models.push({ id, name: id, upstream: "prov-perplexity" })
+      );
+      perUpstream["prov-perplexity"] = { ok: true, count: 3 };
+    } else {
+      perUpstream["prov-perplexity"] = { ok: false, count: 0, error: "no-key" };
+    }
+    return res.json({ syncedAt: Date.now(), models, perUpstream });
   } catch (err: any) {
     console.error("catalog/sync error:", err?.message || err);
     return res.status(500).json({ error: "Sync fail ho gaya" });

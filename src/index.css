@@ -86,6 +86,124 @@
   transition-duration: 250ms;
 }
 
+/* ============ CONNECT HUB — beauty layer ============ */
+.cx-aurora {
+  position: absolute;
+  border-radius: 9999px;
+  filter: blur(90px);
+  pointer-events: none;
+  will-change: transform, opacity;
+}
+@keyframes cx-drift-a {
+  0%, 100% { transform: translate(0, 0) scale(1); opacity: 0.55; }
+  50% { transform: translate(60px, -30px) scale(1.15); opacity: 0.8; }
+}
+@keyframes cx-drift-b {
+  0%, 100% { transform: translate(0, 0) scale(1.1); opacity: 0.5; }
+  50% { transform: translate(-70px, 40px) scale(0.95); opacity: 0.75; }
+}
+@keyframes cx-drift-c {
+  0%, 100% { transform: translate(0, 0) scale(0.9) rotate(0deg); opacity: 0.4; }
+  50% { transform: translate(30px, 50px) scale(1.1) rotate(20deg); opacity: 0.65; }
+}
+.cx-drift-a { animation: cx-drift-a 14s ease-in-out infinite; }
+.cx-drift-b { animation: cx-drift-b 18s ease-in-out infinite; }
+.cx-drift-c { animation: cx-drift-c 22s ease-in-out infinite; }
+
+@keyframes cx-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-8px); }
+}
+.cx-float { animation: cx-float 5s ease-in-out infinite; }
+
+@keyframes cx-pulse-ring {
+  0% { box-shadow: 0 0 0 0 rgba(52, 211, 153, 0.45); }
+  70% { box-shadow: 0 0 0 12px rgba(52, 211, 153, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(52, 211, 153, 0); }
+}
+.cx-pulse-ring { animation: cx-pulse-ring 2.4s ease-out infinite; }
+
+@keyframes cx-shimmer-slide {
+  0% { transform: translateX(-120%) skewX(-18deg); }
+  100% { transform: translateX(240%) skewX(-18deg); }
+}
+.cx-shimmer {
+  position: relative;
+  overflow: hidden;
+}
+.cx-shimmer::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 45%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.22), transparent);
+  animation: cx-shimmer-slide 2.8s ease-in-out infinite;
+  pointer-events: none;
+}
+
+.cx-glass {
+  background: linear-gradient(160deg, rgba(24, 24, 27, 0.82), rgba(12, 12, 14, 0.88));
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  box-shadow: 0 20px 60px -20px rgba(0, 0, 0, 0.7), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+.cx-gradient-text {
+  background: linear-gradient(100deg, #a7f3d0 0%, #34d399 25%, #22d3ee 55%, #c084fc 85%, #f0abfc 100%);
+  background-size: 220% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: cx-gradient-pan 7s linear infinite;
+}
+@keyframes cx-gradient-pan {
+  0% { background-position: 0% center; }
+  100% { background-position: 220% center; }
+}
+
+.cx-glow-btn {
+  box-shadow: 0 0 24px -6px rgba(52, 211, 153, 0.65), 0 8px 30px -10px rgba(34, 211, 238, 0.5);
+  transition: transform 0.18s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.25s ease, filter 0.2s ease;
+}
+.cx-glow-btn:hover {
+  transform: translateY(-2px);
+  filter: brightness(1.08);
+  box-shadow: 0 0 36px -4px rgba(52, 211, 153, 0.8), 0 14px 40px -10px rgba(34, 211, 238, 0.6);
+}
+.cx-glow-btn:active { transform: translateY(0) scale(0.98); }
+
+.cx-card-hover {
+  transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.22s ease, box-shadow 0.25s ease;
+}
+.cx-card-hover:hover {
+  transform: translateY(-3px);
+  border-color: rgba(52, 211, 153, 0.35);
+  box-shadow: 0 18px 50px -18px rgba(52, 211, 153, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.cx-fade-up {
+  animation: cx-fade-up 0.6s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+@keyframes cx-fade-up {
+  from { opacity: 0; transform: translateY(18px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.cx-code {
+  background: rgba(5, 5, 7, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: inset 0 2px 18px rgba(0, 0, 0, 0.6);
+}
+
+.cx-tab-active {
+  background: linear-gradient(120deg, rgba(52, 211, 153, 0.18), rgba(34, 211, 238, 0.14));
+  border-color: rgba(52, 211, 153, 0.5) !important;
+  color: #fff !important;
+  box-shadow: 0 0 20px -6px rgba(52, 211, 153, 0.5);
+}
+
 /* Custom subtle scrollbar */
 ::-webkit-scrollbar {
   width: 6px;

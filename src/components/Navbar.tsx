@@ -10,10 +10,11 @@ import {
   Check,
   ChevronDown,
   Flame,
-  Globe,
+  Plug,
   Bot,
   User,
-  Key
+  Key,
+  Radar
 } from 'lucide-react';
 import { Provider } from '../types/router';
 
@@ -21,8 +22,8 @@ interface NavbarProps {
   providers: Provider[];
   activeProviderId: string;
   onSelectProvider: (providerId: string) => void;
-  activeTab: 'dashboard' | 'tester' | 'quota' | 'telemetry' | 'export';
-  onSelectTab: (tab: 'dashboard' | 'tester' | 'quota' | 'telemetry' | 'export') => void;
+  activeTab: 'dashboard' | 'tester' | 'quota' | 'telemetry' | 'export' | 'monitor';
+  onSelectTab: (tab: 'dashboard' | 'tester' | 'quota' | 'telemetry' | 'export' | 'monitor') => void;
   onOpenAddEndpoint: () => void;
   onOpenAddProvider: () => void;
   onRunHealthSweep: () => void;
@@ -292,8 +293,21 @@ export const Navbar: React.FC<NavbarProps> = ({
                   : 'text-neutral-400 hover:text-neutral-200 hover:bg-neutral-800/60'
               }`}
             >
-              <Globe className="w-3.5 h-3.5" />
-              <span>UNIVERSAL PROXY</span>
+              <Plug className="w-3.5 h-3.5" />
+              <span>CONNECT</span>
+            </button>
+
+            <button
+              id="nav-tab-monitor"
+              onClick={() => onSelectTab('monitor')}
+              className={`flex items-center gap-2 px-3 py-1.5 text-xs font-mono tracking-wide rounded-none transition-all duration-200 ease-out ${
+                activeTab === 'monitor'
+                  ? 'bg-neutral-100 text-neutral-950 font-semibold shadow'
+                  : 'text-neutral-400 hover:text-neutral-200 hover:bg-neutral-800/60'
+              }`}
+            >
+              <Radar className="w-3.5 h-3.5" />
+              <span>API MONITOR</span>
             </button>
           </nav>
 
@@ -374,7 +388,7 @@ export const Navbar: React.FC<NavbarProps> = ({
       </div>
 
       {/* Mobile sub-nav with accessible touch targets (44px min height) */}
-      <div className="lg:hidden grid grid-cols-5 border-t border-neutral-800 bg-neutral-950 text-[10px] font-mono w-full max-w-full overflow-hidden">
+      <div className="lg:hidden grid grid-cols-6 border-t border-neutral-800 bg-neutral-950 text-[10px] font-mono w-full max-w-full overflow-hidden">
         <button
           onClick={() => onSelectTab('dashboard')}
           className={`flex flex-col items-center justify-center py-2 px-0.5 min-h-[44px] transition-colors w-full min-w-0 ${
@@ -427,8 +441,19 @@ export const Navbar: React.FC<NavbarProps> = ({
               : 'text-neutral-400 hover:text-neutral-200'
           }`}
         >
-          <Globe className="w-3.5 h-3.5 mb-0.5 flex-shrink-0" />
-          <span className="truncate max-w-full text-center text-[10px]">PROXY</span>
+          <Plug className="w-3.5 h-3.5 mb-0.5 flex-shrink-0" />
+          <span className="truncate max-w-full text-center text-[10px]">CONNECT</span>
+        </button>
+        <button
+          onClick={() => onSelectTab('monitor')}
+          className={`flex flex-col items-center justify-center py-2 px-0.5 min-h-[44px] transition-colors w-full min-w-0 ${
+            activeTab === 'monitor'
+              ? 'text-white bg-neutral-900 border-b-2 border-white font-bold'
+              : 'text-neutral-400 hover:text-neutral-200'
+          }`}
+        >
+          <Radar className="w-3.5 h-3.5 mb-0.5 flex-shrink-0" />
+          <span className="truncate max-w-full text-center text-[10px]">MONITOR</span>
         </button>
       </div>
     </header>

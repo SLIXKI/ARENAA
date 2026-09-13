@@ -58,11 +58,31 @@ const UNIVERSAL_MODELS: { id: string; upstream: string }[] = [
   { id: "llama-3.3-70b-versatile", upstream: "prov-groq" },
   { id: "mixtral-8x7b-32768", upstream: "prov-groq" },
   { id: "gemma2-9b-it", upstream: "prov-groq" },
+  { id: "llama-3.1-8b-instant", upstream: "prov-groq" },
   { id: "google/gemma-4-31b-it:free", upstream: "prov-openrouter" },
   { id: "nex-agi/nex-n2.5-mini:free", upstream: "prov-openrouter" },
   { id: "liquid/lfm-2.5-2.6b:free", upstream: "prov-openrouter" },
   { id: "llama-3.3-70b", upstream: "prov-cerebras" },
   { id: "llama3.1-8b", upstream: "prov-cerebras" },
+  { id: "gpt-4o-mini", upstream: "prov-openai" },
+  { id: "gpt-4o", upstream: "prov-openai" },
+  { id: "o1-mini", upstream: "prov-openai" },
+  { id: "claude-3-5-haiku-latest", upstream: "prov-anthropic" },
+  { id: "claude-3-5-sonnet-latest", upstream: "prov-anthropic" },
+  { id: "deepseek-chat", upstream: "prov-deepseek" },
+  { id: "deepseek-reasoner", upstream: "prov-deepseek" },
+  { id: "mistral-small-latest", upstream: "prov-mistral" },
+  { id: "mistral-large-latest", upstream: "prov-mistral" },
+  { id: "grok-3-mini", upstream: "prov-xai" },
+  { id: "sonar", upstream: "prov-perplexity" },
+  { id: "sonar-pro", upstream: "prov-perplexity" },
+  { id: "meta-llama/Llama-3.3-70B-Instruct-Turbo", upstream: "prov-together" },
+  { id: "accounts/fireworks/models/llama-v3p1-8b-instruct", upstream: "prov-fireworks" },
+  { id: "Qwen/Qwen2.5-7B-Instruct", upstream: "prov-siliconflow" },
+  { id: "meta-llama/llama-3.1-8b-instruct", upstream: "prov-novita" },
+  { id: "deepseek-ai/DeepSeek-V3", upstream: "prov-chutes" },
+  { id: "hf:meta-llama/Llama-3.3-70B-Instruct", upstream: "prov-glhf" },
+  { id: "command-r-plus", upstream: "prov-cohere" },
 ];
 
 function upstreamOfKey(k: string): string {
@@ -71,6 +91,12 @@ function upstreamOfKey(k: string): string {
   if (key.startsWith("gsk_")) return "prov-groq";
   if (key.startsWith("sk-or-")) return "prov-openrouter";
   if (key.startsWith("csk-")) return "prov-cerebras";
+  if (key.startsWith("sk-proj-") || key.startsWith("sk-svcacct-")) return "prov-openai";
+  if (key.startsWith("sk-ant-")) return "prov-anthropic";
+  if (key.startsWith("xai-")) return "prov-xai";
+  if (key.startsWith("pplx-")) return "prov-perplexity";
+  if (key.startsWith("fw_")) return "prov-fireworks";
+  if (key.startsWith("glhf_")) return "prov-glhf";
   return "unknown";
 }
 

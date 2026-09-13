@@ -1,16 +1,20 @@
 // Per-provider UNLIMITED API key pools (localStorage, zero-setup).
-// Entry: { k: key, g: gmail tag, s: 'active'|'dead', a: addedAt }.
-// Legacy string[] pools and single er_api_key_<id> migrate automatically.
-// Cap: 20 keys per provider (master token size guard).
+// Entry: { k: key, g: gmail tag, s: 'active'|'dead', a: addedAt, u?: upstreamId }.
+// - `u` = explicit upstream tag (user-picked when prefix is ambiguous, e.g. DeepSeek/Together sk-... keys).
+// - Legacy string[] pools and single er_api_key_<id> migrate automatically.
+// Cap: 30 keys per provider, 120 total per master (token header-size guard).
 
 export interface KeyEntry {
   k: string;
   g: string;
   s: "active" | "dead";
   a: number;
+  /** Explicit upstream id (e.g. "prov-deepseek"). Set when prefix detection is ambiguous. */
+  u?: string;
 }
 
-export const MAX_KEYS_PER_PROVIDER = 20;
+export const MAX_KEYS_PER_PROVIDER = 30;
+export const MAX_KEYS_TOTAL = 120;
 
 export const UNIVERSAL_PROVIDER_ID = "Edge Router";
 
@@ -23,13 +27,47 @@ export const LEGACY_POOL_IDS: string[] = [
   "prov-cerebras",
 ];
 
+// ---- Canonical upstream registry (frontend mirror — keep in sync with backend tables) ----
+export const UPSTREAM_IDS: string[] = [
+  "prov-gemini",
+  "prov-groq",
+  "prov-openrouter",
+  "prov-cerebras",
+  "prov-openai",
+  "prov-anthropic",
+  "prov-deepseek",
+  "prov-mistral",
+  "prov-xai",
+  "prov-perplexity",
+  "prov-together",
+  "prov-fireworks",
+  "prov-siliconflow",
+  "prov-novita",
+  "prov-hyperbolic",
+  "prov-chutes",
+  "prov-glhf",
+  "prov-cohere",
+];
+
+export function isKnownUpstream(id: string): boolean {
+  return UPSTREAM_IDS.includes(id);
+}
+
 // Key prefix se upstream auto-detect (user ko kuch batane ki zaroorat nahi).
+// Unique prefixes only — ambiguous `sk-...` style keys stay "unknown" and rely on
+// explicit `u` tag (picked in KEYS UI) or model-based routing + try-all relay.
 export function detectKeyUpstream(key: string): string {
   const k = (key || "").trim();
   if (/^AIza[0-9A-Za-z\-_]{20,}/.test(k) || /^AQ\.[A-Za-z0-9\-_.]{40,}/.test(k)) return "prov-gemini";
   if (k.startsWith("gsk_")) return "prov-groq";
   if (k.startsWith("sk-or-")) return "prov-openrouter";
   if (k.startsWith("csk-")) return "prov-cerebras";
+  if (k.startsWith("sk-proj-") || k.startsWith("sk-svcacct-")) return "prov-openai";
+  if (k.startsWith("sk-ant-")) return "prov-anthropic";
+  if (k.startsWith("xai-")) return "prov-xai";
+  if (k.startsWith("pplx-")) return "prov-perplexity";
+  if (k.startsWith("fw_")) return "prov-fireworks";
+  if (k.startsWith("glhf_")) return "prov-glhf";
   return "unknown";
 }
 
@@ -38,11 +76,43 @@ export const UPSTREAM_NAMES: Record<string, string> = {
   "prov-groq": "Groq",
   "prov-openrouter": "OpenRouter",
   "prov-cerebras": "Cerebras",
+  "prov-openai": "OpenAI",
+  "prov-anthropic": "Anthropic",
+  "prov-deepseek": "DeepSeek",
+  "prov-mistral": "Mistral",
+  "prov-xai": "xAI",
+  "prov-perplexity": "Perplexity",
+  "prov-together": "Together",
+  "prov-fireworks": "Fireworks",
+  "prov-siliconflow": "SiliconFlow",
+  "prov-novita": "Novita",
+  "prov-hyperbolic": "Hyperbolic",
+  "prov-chutes": "Chutes",
+  "prov-glhf": "GLHF",
+  "prov-cohere": "Cohere",
   unknown: "?",
 };
 
+/** Effective upstream for an entry: explicit tag wins, else prefix detection. */
+export function effectiveUpstream(e: KeyEntry | string): string {
+  if (typeof e === "string") return detectKeyUpstream(e);
+  if (e.u && isKnownUpstream(e.u)) return e.u;
+  return detectKeyUpstream(e.k);
+}
+
+/** Short stable hash for a key (for health maps — avoids storing raw keys as map keys). */
+export function keyId(k: string): string {
+  const s = (k || "").trim();
+  let h1 = 0x811c9dc5;
+  for (let i = 0; i < s.length; i++) {
+    h1 ^= s.charCodeAt(i);
+    h1 = Math.imul(h1, 0x01000193) >>> 0;
+  }
+  return `${s.slice(0, 6)}:${s.length}:${h1.toString(36)}`;
+}
+
 // Purani per-provider pools (+ legacy singles) ko universal pool me merge karo.
-// Keys + gmail + status safe rehte hai. Returns merged count.
+// Keys + gmail + status + upstream-tag safe rehte hai. Returns merged count.
 export function migratePoolsToUniversal(): number {
   try {
     const seen = new Set<string>();
@@ -91,11 +161,13 @@ function normEntry(v: any): KeyEntry | null {
     return { k: v.trim(), g: "", s: "active", a: Date.now() };
   }
   if (v && typeof v.k === "string" && v.k.trim()) {
+    const u = typeof v.u === "string" && isKnownUpstream(v.u) ? v.u : undefined;
     return {
       k: v.k.trim(),
       g: typeof v.g === "string" ? v.g.trim() : "",
       s: v.s === "dead" ? "dead" : "active",
       a: typeof v.a === "number" ? v.a : Date.now(),
+      ...(u ? { u } : {}),
     };
   }
   return null;
@@ -152,11 +224,21 @@ export function getAllProviderKeys(providerIds: string[]): Record<string, string
   return out;
 }
 
+/** Parallel upstream hints aligned with getProviderKeys() order (for smart backend routing). */
+export function getProviderKeyHints(providerId: string): string[] {
+  return getProviderKeyEntries(providerId).map((e) => effectiveUpstream(e));
+}
+
 export function isValidGmail(g: string): boolean {
   return /.+@.+\..{2,}/.test((g || "").trim());
 }
 
-export function addProviderKey(providerId: string, key: string, gmail = ""): { ok: boolean; error?: string } {
+export function addProviderKey(
+  providerId: string,
+  key: string,
+  gmail = "",
+  upstreamTag = ""
+): { ok: boolean; error?: string } {
   const k = (key || "").replace(/[\s'"`]+/g, "").trim();
   if (k.length < 10) return { ok: false, error: "Key bahut chhoti hai — full key paste karo" };
   const entries = getProviderKeyEntries(providerId);
@@ -165,13 +247,29 @@ export function addProviderKey(providerId: string, key: string, gmail = ""): { o
   }
   if (entries.some((e) => e.k === k)) return { ok: false, error: "Ye key already added hai" };
   const g = (gmail || "").trim();
-  entries.push({ k, g: isValidGmail(g) ? g : "", s: "active", a: Date.now() });
+  const u = upstreamTag && isKnownUpstream(upstreamTag) ? upstreamTag : undefined;
+  entries.push({ k, g: isValidGmail(g) ? g : "", s: "active", a: Date.now(), ...(u ? { u } : {}) });
   try {
     saveEntries(providerId, entries);
   } catch {
     return { ok: false, error: "Save fail ho gaya" };
   }
   return { ok: true };
+}
+
+/** Set/change the explicit upstream tag for a key (used when prefix is ambiguous). */
+export function setKeyUpstream(providerId: string, index: number, upstreamId: string): boolean {
+  try {
+    const entries = getProviderKeyEntries(providerId);
+    if (!entries[index]) return false;
+    if (upstreamId && !isKnownUpstream(upstreamId)) return false;
+    entries[index] = { ...entries[index], ...(upstreamId ? { u: upstreamId } : { u: undefined }) };
+    if (!upstreamId) delete (entries[index] as any).u;
+    saveEntries(providerId, entries);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 export function removeProviderKey(providerId: string, index: number): void {
@@ -227,9 +325,9 @@ export function maskKey(key: string): string {
 // Canonical snapshot string of pools (for master-key staleness compare).
 export function poolsSnapshot(providerIds: string[]): string {
   try {
-    const snap: Record<string, string[]> = {};
+    const snap: Record<string, { k: string; g: string; u?: string }[]> = {};
     providerIds.forEach((id) => {
-      snap[id] = getProviderKeys(id);
+      snap[id] = getProviderKeyEntries(id).map((e) => ({ k: e.k, g: e.g, ...(e.u ? { u: e.u } : {}) }));
     });
     return JSON.stringify(snap);
   } catch {

@@ -13,11 +13,38 @@ export const UNIVERSAL_MODELS: string[] = [
   'llama-3.3-70b-versatile',
   'mixtral-8x7b-32768',
   'gemma2-9b-it',
+  'llama-3.1-8b-instant',
   'google/gemma-4-31b-it:free',
   'nex-agi/nex-n2.5-mini:free',
   'liquid/lfm-2.5-2.6b:free',
   'llama-3.3-70b',
   'llama3.1-8b',
+  // OpenAI
+  'gpt-4o-mini',
+  'gpt-4o',
+  'o1-mini',
+  // Anthropic
+  'claude-3-5-haiku-latest',
+  'claude-3-5-sonnet-latest',
+  // DeepSeek
+  'deepseek-chat',
+  'deepseek-reasoner',
+  // Mistral
+  'mistral-small-latest',
+  'open-mistral-7b',
+  // xAI
+  'grok-3-mini',
+  // Perplexity
+  'sonar',
+  // Together / Fireworks / SiliconFlow / Novita / Hyperbolic / Chutes / GLHF / Cohere
+  'meta-llama/Llama-3.3-70B-Instruct-Turbo',
+  'accounts/fireworks/models/llama-v3p1-8b-instruct',
+  'Qwen/Qwen2.5-7B-Instruct',
+  'meta-llama/llama-3.1-8b-instruct',
+  'meta-llama/Meta-Llama-3.1-8B-Instruct',
+  'deepseek-ai/DeepSeek-V3',
+  'hf:meta-llama/Llama-3.3-70B-Instruct',
+  'command-r-plus',
 ];
 
 export const INITIAL_PROVIDERS: Provider[] = [

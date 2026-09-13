@@ -9,7 +9,8 @@ import { BentoDashboard } from './components/BentoDashboard';
 import { EdgeTester } from './components/EdgeTester';
 import { DailyQuotaTracker } from './components/DailyQuotaTracker';
 import { TelemetryView } from './components/TelemetryView';
-import { WorkerExporter } from './components/WorkerExporter';
+import { ConnectHub } from './components/ConnectHub';
+import { ApiMonitor } from './components/ApiMonitor';
 import { EndpointModal } from './components/EndpointModal';
 import { ProviderModal } from './components/ProviderModal';
 import { OperatorLoginModal } from './components/OperatorLoginModal';
@@ -191,7 +192,7 @@ export default function App() {
     }
   });
 
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'tester' | 'quota' | 'telemetry' | 'export'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'tester' | 'quota' | 'telemetry' | 'export' | 'monitor'>('dashboard');
   const [isHealthSweeping, setIsHealthSweeping] = useState(false);
   const [isAddEndpointOpen, setIsAddEndpointOpen] = useState(false);
   const [editingEndpoint, setEditingEndpoint] = useState<Endpoint | null>(null);
@@ -748,7 +749,7 @@ export default function App() {
           )}
 
           {activeTab === 'export' && (
-            <WorkerExporter
+            <ConnectHub
               activeProvider={activeProvider}
               providers={providers}
               endpoints={endpoints}
@@ -757,6 +758,10 @@ export default function App() {
               onImportConfig={handleImportConfig}
               userGeminiKey={userGeminiKey}
             />
+          )}
+
+          {activeTab === 'monitor' && (
+            <ApiMonitor providers={providers} />
           )}
         </div>
       </main>

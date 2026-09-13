@@ -26,7 +26,7 @@ import {
 import { Provider, Endpoint, RoutingPolicy } from '../types/router';
 import { CopyButton } from './CopyButton';
 import { stripActionTags, splitCodeSegments, findUrls } from '../utils/copy';
-import { getProviderKeys, getAllProviderKeys } from '../utils/providerKeys';
+import { getProviderKeys, getProviderKeyEntries, effectiveUpstream, UPSTREAM_IDS } from '../utils/providerKeys';
 import { loadLiveCatalog, getModelStatus } from '../utils/catalog';
 import { notify } from '../utils/notify';
 
@@ -101,7 +101,7 @@ interface AutonomousCopilotProps {
   onSelectProvider: (providerId: string) => void;
   onSelectPolicy: (policy: RoutingPolicy) => void;
   onRunHealthSweep: () => void;
-  onSelectTab: (tab: 'dashboard' | 'tester' | 'quota' | 'telemetry' | 'export') => void;
+  onSelectTab: (tab: 'dashboard' | 'tester' | 'quota' | 'telemetry' | 'export' | 'monitor') => void;
   onSetApiKey?: (providerId: string, apiKey: string) => void;
   onAddProvider?: (provider: Provider) => void;
   onSaveEndpoint?: (endpoint: Endpoint) => void;
@@ -350,7 +350,7 @@ Short me jawab dunga — detail chahiye to bol dena. Hindi/Hinglish/English sab 
     const tabMatch = text.match(/\[ACTION:SWITCH_TAB:([a-zA-Z0-9_-]+)\]/);
     if (tabMatch && tabMatch[1]) {
       const t = tabMatch[1] as any;
-      if (['dashboard', 'tester', 'quota', 'telemetry', 'export'].includes(t)) {
+      if (['dashboard', 'tester', 'quota', 'telemetry', 'export', 'monitor'].includes(t)) {
         onSelectTab(t);
         executed.push(`Navigated to ${t} view`);
       }
@@ -532,21 +532,13 @@ Short me jawab dunga — detail chahiye to bol dena. Hindi/Hinglish/English sab 
             })),
             upstreamKeyStatus: (() => {
               try {
-                const pools = getAllProviderKeys((providers || []).map((x) => x.id));
                 const all: string[] = [];
-                Object.values(pools).forEach((arr) => {
-                  if (Array.isArray(arr)) all.push(...arr);
+                (providers || []).forEach((x) => {
+                  getProviderKeyEntries(x.id).forEach((e) => {
+                    if (e.s === 'active') all.push(effectiveUpstream(e));
+                  });
                 });
-                return ["prov-gemini", "prov-groq", "prov-openrouter", "prov-cerebras"].map((up) => ({
-                  upstream: up,
-                  hasKey: all.some((k) => {
-                    if (up === "prov-gemini") return /^AIza[0-9A-Za-z\-_]{20,}/.test(k) || /^AQ\.[A-Za-z0-9\-_.]{40,}/.test(k);
-                    if (up === "prov-groq") return k.startsWith("gsk_");
-                    if (up === "prov-openrouter") return k.startsWith("sk-or-");
-                    if (up === "prov-cerebras") return k.startsWith("csk-");
-                    return false;
-                  }),
-                }));
+                return UPSTREAM_IDS.map((up) => ({ upstream: up, hasKey: all.includes(up) }));
               } catch {
                 return [];
               }

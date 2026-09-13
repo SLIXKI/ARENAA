@@ -1,14 +1,41 @@
 // Issue a UNIQUE master key embedding the user's provider pools — SELF-CONTAINED.
-// POST { keys: { providerId: [{k,g} | "keystring", ...] }, label? }
+// POST { keys: { providerId: [{k,g,u?,b?,m?} | "keystring", ...] }, label? }
+// Per-key extras: u = upstream tag, b = custom OpenAI-compat base URL (own proxy/endpoint),
+// m = model affinity (this key is preferred when that exact model is requested).
 // No auth needed: you only unlock keys you supply yourself (no privilege escalation).
-// Caps: 20 keys/provider, 80 total (token header-size guard).
+// Caps: 30 keys/provider, 120 total (token header-size guard).
 import crypto from "node:crypto";
 import { deflateSync } from "node:zlib";
 
 const MASTER_PREFIX = "er1.";
 const MASTER_TTL_MS = 90 * 86400 * 1000;
-const MAX_KEYS_PER_PROVIDER = 20;
-const MAX_KEYS_TOTAL = 80;
+const MAX_KEYS_PER_PROVIDER = 30;
+const MAX_KEYS_TOTAL = 120;
+
+const KNOWN_U = new Set([
+  "prov-gemini", "prov-groq", "prov-openrouter", "prov-cerebras", "prov-openai",
+  "prov-anthropic", "prov-deepseek", "prov-mistral", "prov-xai", "prov-perplexity",
+  "prov-together", "prov-fireworks", "prov-siliconflow", "prov-novita",
+  "prov-hyperbolic", "prov-chutes", "prov-glhf", "prov-cohere",
+]);
+
+// SSRF guard for custom bases: public https only (catalog hosts always OK).
+function isAllowedBase(raw: string): boolean {
+  try {
+    const u = new URL(raw);
+    if (u.protocol !== "https:") return false;
+    const host = u.hostname.toLowerCase();
+    if (/(^|\.)(generativelanguage\.googleapis\.com|api\.groq\.com|openrouter\.ai|api\.cerebras\.ai|api\.openai\.com|api\.anthropic\.com|api\.deepseek\.com|api\.mistral\.ai|api\.x\.ai|api\.perplexity\.ai|api\.together\.xyz|api\.fireworks\.ai|api\.siliconflow\.cn|api\.novita\.ai|api\.hyperbolic\.xyz|llm\.chutes\.ai|chutes\.ai|glhf\.chat|api\.cohere\.ai)$/.test(host)) return true;
+    if (!host.includes(".")) return false;
+    if (host === "localhost" || host.endsWith(".localhost") || host.endsWith(".local") || host.endsWith(".internal")) return false;
+    if (/^(10\.|127\.|192\.168\.|169\.254\.|0\.0\.0\.0)/.test(host)) return false;
+    if (/^172\.(1[6-9]|2\d|3[01])\./.test(host)) return false;
+    if (/^[0-9a-f:]*:[0-9a-f:]+$/i.test(host)) return false;
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 function masterSecret(): Buffer {
   return crypto
@@ -36,7 +63,7 @@ export default async function handler(req: any, res: any) {
       return res.status(400).json({ error: "Missing keys object: { providerId: [{k, g}] }" });
     }
     const label = typeof body.label === "string" ? body.label.slice(0, 40) : "";
-    const pools: Record<string, { k: string; g: string }[]> = {};
+    const pools: Record<string, { k: string; g: string; u?: string; b?: string; m?: string }[]> = {};
     let total = 0;
     for (const pid of Object.keys(input)) {
       if (!Array.isArray(input[pid])) {
@@ -45,7 +72,7 @@ export default async function handler(req: any, res: any) {
       if (input[pid].length > MAX_KEYS_PER_PROVIDER) {
         return res.status(400).json({ error: `${pid}: max ${MAX_KEYS_PER_PROVIDER} keys per provider` });
       }
-      const arr: { k: string; g: string }[] = [];
+      const arr: { k: string; g: string; u?: string; b?: string; m?: string }[] = [];
       for (const v of input[pid]) {
         const k = typeof v === "string" ? v.replace(/[\s'"`]+/g, "").trim() : typeof v?.k === "string" ? v.k.replace(/[\s'"`]+/g, "").trim() : "";
         if (k.length < 10) {
@@ -53,7 +80,19 @@ export default async function handler(req: any, res: any) {
         }
         const rawG = typeof v?.g === "string" ? v.g.trim() : "";
         const g = /.+@.+\..{2,}/.test(rawG) ? rawG : "";
-        arr.push({ k, g });
+        const rawU = typeof v?.u === "string" ? v.u.trim() : "";
+        const rawB = typeof v?.b === "string" ? v.b.trim().replace(/\/+$/, "") : "";
+        const rawM = typeof v?.m === "string" ? v.m.trim().slice(0, 120) : "";
+        const entry: { k: string; g: string; u?: string; b?: string; m?: string } = { k, g };
+        if (rawU && KNOWN_U.has(rawU)) entry.u = rawU;
+        if (rawB) {
+          if (rawB.length > 200 || !isAllowedBase(rawB)) {
+            return res.status(400).json({ error: `${pid}: custom base URL public https hona chahiye (${rawB.slice(0, 60)})` });
+          }
+          entry.b = rawB;
+        }
+        if (rawM) entry.m = rawM;
+        arr.push(entry);
         total++;
       }
       if (arr.length > 0) pools[pid] = arr;
@@ -71,7 +110,10 @@ export default async function handler(req: any, res: any) {
     for (const pid of Object.keys(pools)) {
       providers[pid] = { count: pools[pid].length, gmails: [...new Set(pools[pid].map((e) => e.g).filter(Boolean))] };
     }
-    return res.json({ masterKey, mid, label, expiresAt: exp, providers });
+    const sizeWarn = masterKey.length > 7000
+      ? `Master token ${masterKey.length} chars — kuch tools 8KB header cap pe fail karte hai. Keys kam rakho ya 2nd master banao.`
+      : "";
+    return res.json({ masterKey, mid, label, expiresAt: exp, providers, tokenSize: masterKey.length, ...(sizeWarn ? { sizeWarn } : {}) });
   } catch (err: any) {
     console.error("keys/issue error:", err?.message || err);
     return res.status(500).json({ error: "Issue fail ho gaya" });

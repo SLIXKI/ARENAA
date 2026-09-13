@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import { Endpoint, Provider, RoutingPolicy } from '../types/router';
 import { getProviderKeyEntries, poolsSnapshot } from '../utils/providerKeys';
+import { customPoolEntries, customEndpointsSig } from '../utils/customEndpoints';
 import { notify } from '../utils/notify';
 
 interface WorkerExporterProps {
@@ -33,6 +34,8 @@ interface WorkerExporterProps {
   fallbackChain?: string[];
   onImportConfig: (data: { providers?: Provider[]; endpoints?: Endpoint[] }) => void;
   userGeminiKey?: string;
+  /** Compact: only Worker code + config portability (master key UI lives in ConnectHub). */
+  compact?: boolean;
 }
 
 export const WorkerExporter: React.FC<WorkerExporterProps> = ({
@@ -43,6 +46,7 @@ export const WorkerExporter: React.FC<WorkerExporterProps> = ({
   fallbackChain = [],
   onImportConfig,
   userGeminiKey = '',
+  compact = false,
 }) => {
   const [copiedType, setCopiedType] = useState<string | null>(null);
   const [selectedLanguage, setSelectedLanguage] = useState<'curl' | 'python' | 'node' | 'opencode' | 'nextjs'>('python');
@@ -70,7 +74,7 @@ export const WorkerExporter: React.FC<WorkerExporterProps> = ({
 
   const poolSigNow = (() => {
     try {
-      return poolsSnapshot((providers || []).map((p) => p.id));
+      return poolsSnapshot((providers || []).map((p) => p.id)) + '|' + customEndpointsSig();
     } catch {
       return '';
     }
@@ -105,11 +109,13 @@ export const WorkerExporter: React.FC<WorkerExporterProps> = ({
     setMasterBusy(true);
     setMasterMsg('');
     try {
-      const pools: Record<string, { k: string; g: string }[]> = {};
+      const pools: Record<string, { k: string; g: string; u?: string; b?: string; m?: string }[]> = {};
       (providers || []).forEach((p) => {
         const entries = getProviderKeyEntries(p.id);
-        if (entries.length > 0) pools[p.id] = entries.map((e) => ({ k: e.k, g: e.g }));
+        if (entries.length > 0) pools[p.id] = entries.map((e) => ({ k: e.k, g: e.g, ...(e.u ? { u: e.u } : {}) }));
       });
+      const customs = customPoolEntries();
+      if (customs.length > 0) pools['custom'] = customs;
       if (Object.keys(pools).length === 0) {
         setMasterMsg('Pehle KEYS button se kam se kam 1 provider key dalo.');
         notify('warn', 'Master key nahi bani', 'Pools khali hai — pehle keys dalo.');
@@ -133,8 +139,10 @@ export const WorkerExporter: React.FC<WorkerExporterProps> = ({
         counts: data.providers,
         poolsSnapshot: poolSigNow,
       });
-      setMasterMsg(`Master key ban gayi ✓ (expiry: ${new Date(data.expiresAt).toLocaleDateString()})`);
-      notify('success', 'Master key generated', `${Object.keys(data.providers || {}).length} providers embedded, 90 din valid.`);
+      const totalKeys = Object.values(data.providers || {}).reduce((n: number, v: any) => n + (v?.count || 0), 0);
+      setMasterMsg(`Master key ban gayi ✓ (${totalKeys} keys, expiry: ${new Date(data.expiresAt).toLocaleDateString()})${data.sizeWarn ? ` ⚠️ ${data.sizeWarn}` : ''}`);
+      notify('success', 'Master key generated', `${totalKeys} keys embedded (tags samet), 90 din valid.`);
+      if (data.sizeWarn) notify('warn', 'Master token bada hai', data.sizeWarn);
     } catch (e: any) {
       setMasterMsg('Network error — dobara try karo.');
     } finally {
@@ -482,6 +490,7 @@ function selectEndpoint(nodes: RegionalEndpoint[]): RegionalEndpoint {
 
   return (
     <div className="space-y-6 sm:space-y-8 pb-16 font-mono min-w-0 max-w-full overflow-hidden">
+      {!compact && (<>
       {/* Header */}
       <div className="border-b border-neutral-800/80 pb-4 sm:pb-6 space-y-2 min-w-0 max-w-full overflow-hidden">
         <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 text-[10px] sm:text-xs uppercase tracking-widest text-neutral-400">
@@ -802,6 +811,7 @@ function selectEndpoint(nodes: RegionalEndpoint[]): RegionalEndpoint {
         </div>
       </div>
 
+      </>)}
       {/* Lower Section: Full Edge Worker Script & Config Export */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 min-w-0 max-w-full">
         {/* Cloudflare Worker Script (Span 8) */}

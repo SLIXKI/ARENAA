@@ -1,7 +1,7 @@
 // Live model catalog: provider /models fan-out results, cached locally.
 // Sync: login + har 6h + manual button. Diff -> added/removed notifications.
 import { notify } from "./notify";
-import { getProviderKeyEntries } from "./providerKeys";
+import { getProviderKeyEntries, effectiveUpstream, UPSTREAM_IDS } from "./providerKeys";
 
 export interface LiveModel {
   id: string;
@@ -103,18 +103,23 @@ export async function runCatalogSync(providerIds: string[]): Promise<LiveCatalog
     });
   } catch { /* ignore */ }
 
-  // Pools ko upstream-wise batch karo (sync endpoint first-active-key use karta hai)
-  const byUpstream: Record<string, string[]> = { gemini: [], groq: [], openrouter: [], cerebras: [] };
-  const allKeys: string[] = [];
-  Object.values(pools).forEach((arr) => {
-    if (Array.isArray(arr)) allKeys.push(...arr);
+  // Pools ko upstream-wise batch karo (sync endpoint first-active-key use karta hai).
+  // Grouping = explicit tag `u` first, else prefix detect (covers all 18 upstreams).
+  const byUpstream: Record<string, string[]> = {};
+  UPSTREAM_IDS.forEach((up) => {
+    byUpstream[up.replace(/^prov-/, "")] = [];
   });
-  const pick = (re: RegExp) => allKeys.filter((k) => re.test(k)).slice(0, 3);
-  const geminiKeys = [...pick(/^AIza[0-9A-Za-z\-_]{20,}/), ...pick(/^AQ\.[A-Za-z0-9\-_.]{40,}/)].slice(0, 3);
-  byUpstream.gemini = geminiKeys;
-  byUpstream.groq = pick(/^gsk_/);
-  byUpstream.openrouter = pick(/^sk-or-/);
-  byUpstream.cerebras = pick(/^csk-/);
+  try {
+    providerIds.forEach((pid) => {
+      getProviderKeyEntries(pid)
+        .filter((e) => e.s === "active")
+        .forEach((e) => {
+          const up = effectiveUpstream(e);
+          const short = up.replace(/^prov-/, "");
+          if (byUpstream[short] && byUpstream[short].length < 2) byUpstream[short].push(e.k);
+        });
+    });
+  } catch { /* ignore */ }
 
   let res: Response;
   try {
