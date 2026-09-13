@@ -3,6 +3,7 @@ import {
   Sparkles, Key, Copy, Check, Eye, EyeOff, RefreshCw, Trash2, Plus, Plug, FlaskConical,
   Terminal, ChevronDown, ShieldCheck, Zap, Cpu, Globe, Braces, FileJson, Settings2,
   Cloud, Rocket, CircleCheck, CircleX, Loader2, Server, Boxes, ArrowRight, Power,
+  Gift, BadgeCheck, Bot, MessageSquare, Layers, MonitorSmartphone, Wand2,
 } from 'lucide-react';
 import type { Endpoint, Provider, RoutingPolicy } from '../types/router';
 import { UNIVERSAL_MODELS } from '../data/initialData';
@@ -15,7 +16,7 @@ import {
   loadMaster, saveMaster, buildMasterPools, masterSigNow, isMasterStale,
   issueMaster, revokeMaster, countMasterKeys, expiryText,
 } from '../utils/masterKey';
-import { UPSTREAM_NAMES, UPSTREAM_IDS } from '../utils/providerKeys';
+import { UPSTREAM_NAMES, UPSTREAM_IDS, addProviderKey } from '../utils/providerKeys';
 import { WorkerExporter } from './WorkerExporter';
 import { notify } from '../utils/notify';
 
@@ -29,17 +30,27 @@ interface ConnectHubProps {
   userGeminiKey?: string;
 }
 
-type ClientId = 'claude-code' | 'opencode' | 'cline' | 'continue' | 'cursor' | 'curl' | 'python' | 'node';
+type ClientId = 'claude-code' | 'opencode' | 'cline' | 'roo' | 'kilo' | 'continue' | 'cursor' | 'windsurf' | 'void' | 'zed' | 'neovim' | 'aider' | 'crush' | 'openwebui' | 'curl' | 'python' | 'node' | 'vercel-ai';
 
 const CLIENTS: { id: ClientId; label: string; icon: React.ReactNode; blurb: string }[] = [
   { id: 'claude-code', label: 'Claude Code', icon: <Terminal className="w-4 h-4" />, blurb: 'Anthropic-native API — tools + streaming' },
   { id: 'opencode', label: 'OpenCode', icon: <Boxes className="w-4 h-4" />, blurb: 'opencode.json custom provider' },
   { id: 'cline', label: 'Cline', icon: <Plug className="w-4 h-4" />, blurb: 'OpenAI-Compatible mode' },
+  { id: 'roo', label: 'Roo Code', icon: <Bot className="w-4 h-4" />, blurb: 'OpenAI-Compatible mode' },
+  { id: 'kilo', label: 'Kilo Code', icon: <Wand2 className="w-4 h-4" />, blurb: 'OpenAI-Compatible mode' },
   { id: 'continue', label: 'Continue', icon: <Settings2 className="w-4 h-4" />, blurb: 'config.yaml model block' },
   { id: 'cursor', label: 'Cursor', icon: <Cpu className="w-4 h-4" />, blurb: 'Override OpenAI base URL' },
+  { id: 'windsurf', label: 'Windsurf', icon: <MonitorSmartphone className="w-4 h-4" />, blurb: 'BYOK custom endpoint' },
+  { id: 'void', label: 'Void', icon: <Layers className="w-4 h-4" />, blurb: 'OpenAI-Compatible provider' },
+  { id: 'zed', label: 'Zed', icon: <MessageSquare className="w-4 h-4" />, blurb: 'settings.json language model' },
+  { id: 'neovim', label: 'Neovim', icon: <Braces className="w-4 h-4" />, blurb: 'Avante.nvim provider' },
+  { id: 'aider', label: 'Aider', icon: <Terminal className="w-4 h-4" />, blurb: 'Terminal pair-programmer' },
+  { id: 'crush', label: 'Crush', icon: <Zap className="w-4 h-4" />, blurb: 'crush.json provider' },
+  { id: 'openwebui', label: 'Open WebUI', icon: <Globe className="w-4 h-4" />, blurb: 'Self-hosted chat UIs' },
   { id: 'curl', label: 'cURL', icon: <Terminal className="w-4 h-4" />, blurb: 'Raw HTTP, any terminal' },
   { id: 'python', label: 'Python', icon: <Braces className="w-4 h-4" />, blurb: 'OpenAI SDK, 6 lines' },
-  { id: 'node', label: 'Node.js', icon: <FileJson className="w-4 h-4" />, blurb: 'OpenAI SDK + Vercel AI SDK' },
+  { id: 'node', label: 'Node.js', icon: <FileJson className="w-4 h-4" />, blurb: 'OpenAI SDK' },
+  { id: 'vercel-ai', label: 'Vercel AI SDK', icon: <Boxes className="w-4 h-4" />, blurb: 'generateText / streamText' },
 ];
 
 const DISPLAY = { fontFamily: 'Syne, "Plus Jakarta Sans", sans-serif' } as const;
@@ -81,6 +92,9 @@ export const ConnectHub: React.FC<ConnectHubProps> = ({
   const [draft, setDraft] = useState({ name: '', baseUrl: '', key: '', model: '', tag: '' });
   const [ceError, setCeError] = useState('');
   const [testingId, setTestingId] = useState<string | null>(null);
+  const [keysTick, setKeysTick] = useState(0);
+  const [verifying, setVerifying] = useState(false);
+  const [verifyMsg, setVerifyMsg] = useState('');
 
   const customs = useMemo(() => listCustomEndpoints(), [ceTick]);
   const enabledCustoms = customs.filter((c) => c.enabled);
@@ -96,6 +110,7 @@ export const ConnectHub: React.FC<ConnectHubProps> = ({
   const displayKey = masterKey || 'er1...generate-karo';
 
   const keyCounts = useMemo(() => {
+    void keysTick;
     let total = 0;
     const per: { id: string; name: string; n: number }[] = [];
     (providers || []).forEach((p) => {
@@ -103,7 +118,7 @@ export const ConnectHub: React.FC<ConnectHubProps> = ({
       if (n > 0) { total += n; per.push({ id: p.id, name: p.name, n }); }
     });
     return { total, per };
-  }, [providers, masterKey]);
+  }, [providers, masterKey, keysTick]);
 
   const stale = !!masterKey && isMasterStale(providers, masterMeta);
   const allModels = useMemo(() => {
@@ -169,6 +184,44 @@ export const ConnectHub: React.FC<ConnectHubProps> = ({
     } finally {
       setBusy(false);
     }
+  };
+
+  const handleVerifyKey = async () => {
+    if (!masterKey) return;
+    setVerifying(true);
+    setVerifyMsg('');
+    try {
+      const res = await fetch('/api/v1/models', { headers: { Authorization: `Bearer ${masterKey}` } });
+      const data = await res.json().catch(() => null);
+      if (!res.ok) {
+        setVerifyMsg(`Key fail: ${data?.error?.message || data?.error || 'invalid'} — Regenerate karo.`);
+        notify('error', 'Key verify fail', 'Master invalid/expire — Regenerate karo.');
+        return;
+      }
+      const arr = Array.isArray(data?.data) ? data.data : [];
+      const avail = arr.filter((m: any) => m.available !== false).length;
+      setVerifyMsg(`Key LIVE ✓ — ${avail}/${arr.length} models reachable isi key se. Neeche koi bhi app connect karo.`);
+      notify('success', 'Key verified LIVE', `${avail}/${arr.length} models reachable.`);
+    } catch {
+      setVerifyMsg('Network error — server chal raha hai na?');
+    } finally {
+      setVerifying(false);
+    }
+  };
+
+  const handleAddFreeKey = () => {
+    const target = (providers || []).find((p) => p.id === 'Edge Router') || (providers || [])[0];
+    if (!target) {
+      notify('error', 'Free key fail', 'Koi provider pool nahi mila.');
+      return;
+    }
+    const res = addProviderKey(target.id, 'pollinations-free-tier', '', 'prov-pollinations');
+    if (!res.ok) {
+      notify('warn', 'Free key', res.error || 'Add fail');
+      return;
+    }
+    setKeysTick((t) => t + 1);
+    notify('success', 'FREE key added ⚡', 'Pollinations (bina signup, bina key) — ab master Regenerate karo aur chalao.');
   };
 
   const handleAddEndpoint = () => {
@@ -256,7 +309,29 @@ claude`,
       code: `Base URL :  ${openaiBase}
 API Key  :  ${displayKey}
 Model ID :  ${effModel}`,
-      note: 'Roo Code / Kilo Code me bhi same 3 fields — provider mode "OpenAI Compatible" rakho.',
+      note: 'Roo Code aur Kilo Code me same 3 fields — unke dedicated tabs bhi upar hai.',
+    },
+    'roo': {
+      lang: 'text',
+      steps: [
+        'Roo Code → Settings (⚙) → API Provider = "OpenAI Compatible"',
+        'Neeche wali 3 values copy-paste karo',
+        'Save → Roo tumhare provider pe chalega (Modes + Boomerang same rahenge)',
+      ],
+      code: `Base URL :  ${openaiBase}
+API Key  :  ${displayKey}
+Model ID :  ${effModel}`,
+    },
+    'kilo': {
+      lang: 'text',
+      steps: [
+        'Kilo Code → Settings (⚙) → Provider = "OpenAI Compatible"',
+        'Neeche wali 3 values copy-paste karo',
+        'Save → Kilo tumhare provider se baat karega',
+      ],
+      code: `Base URL :  ${openaiBase}
+API Key  :  ${displayKey}
+Model ID :  ${effModel}`,
     },
     'continue': {
       lang: 'yaml',
@@ -282,6 +357,118 @@ Model ID :  ${effModel}`,
       code: `Override OpenAI Base URL :  ${openaiBase}
 OpenAI API Key          :  ${displayKey}
 Model                   :  ${effModel}`,
+    },
+    'windsurf': {
+      lang: 'text',
+      steps: [
+        'Windsurf → Settings → Models → "Manage API keys" (BYOK)',
+        'OpenAI key me apni key dalo + custom endpoint me neeche wala URL',
+        'Chat/Cascade me model select karke code karo',
+      ],
+      code: `Custom endpoint :  ${openaiBase}
+API Key         :  ${displayKey}
+Model           :  ${effModel}`,
+      note: 'Windsurf ke kuch versions me custom endpoint option alag naam se hota hai ("Custom OpenAI endpoint") — wahi me URL dalo.',
+    },
+    'void': {
+      lang: 'text',
+      steps: [
+        'Void → Settings → Models → "Add Provider" = OpenAI Compatible',
+        'Neeche wali 3 values dalo',
+        'Chat/Apply me model dikhega — tumhara provider, open-source IDE',
+      ],
+      code: `Base URL :  ${openaiBase}
+API Key  :  ${displayKey}
+Model ID :  ${effModel}`,
+    },
+    'zed': {
+      lang: 'json',
+      steps: [
+        'Zed → Settings → Open Settings File (settings.json)',
+        '`language_models` me ye OpenAI block add karo',
+        'Assistant panel me model select karo',
+      ],
+      code: `{
+  "language_models": {
+    "openai": {
+      "api_url": "${openaiBase}",
+      "api_key": "${displayKey}",
+      "available_models": [
+        {
+          "name": "${effModel}",
+          "display_name": "${effModel} (my provider)",
+          "max_tokens": 64000
+        }
+      ]
+    }
+  }
+}`,
+    },
+    'neovim': {
+      lang: 'lua',
+      steps: [
+        'avante.nvim installed rakho (lazy.nvim)',
+        'Setup me ye provider block add karo',
+        'Terminal me key export karo → `:AvanteChat` me model ready',
+      ],
+      code: `-- export EDGE_ROUTER_API_KEY="${displayKey}"  (shell me)
+require("avante").setup({
+  provider = "edge_router",
+  providers = {
+    edge_router = {
+      __inherited_from = "openai",
+      endpoint = "${openaiBase}",
+      api_key_name = "EDGE_ROUTER_API_KEY",
+      model = "${effModel}",
+    },
+  },
+})`,
+      note: 'CodeCompanion.nvim me bhi same pattern: adapter "openai" + custom `url` + `api_key` env.',
+    },
+    'aider': {
+      lang: 'bash',
+      steps: [
+        '`pip install aider-chat` (ya brew/uv)',
+        'Neeche wali 2 lines terminal me chalao',
+        'Aider tumhare repo me tumhare provider pe code karega',
+      ],
+      code: `export OPENAI_API_KEY="${displayKey}"
+
+aider --model openai/${effModel} \\
+  --openai-api-base ${openaiBase} \\
+  --no-auto-commits`,
+      note: 'Pro tip: `--architect` flag se 2-model planning mode; `--watch-files` se auto context.',
+    },
+    'crush': {
+      lang: 'json',
+      steps: [
+        'Project (ya `~/.config/crush/`) me `crush.json` banao',
+        'Ye provider block paste karo',
+        '`crush` chalao → model picker me Edge Router milega',
+      ],
+      code: `{
+  "$schema": "https://charm.land/crush.json",
+  "providers": {
+    "edge-router": {
+      "base_url": "${openaiBase}",
+      "api_key": "${displayKey}",
+      "models": [
+        { "id": "${effModel}", "name": "${effModel} (my provider)" }
+      ]
+    }
+  }
+}`,
+    },
+    'openwebui': {
+      lang: 'text',
+      steps: [
+        'Open WebUI → Admin Panel → Settings → Connections',
+        'OpenAI section me "+" → URL + key dalo, verify karo',
+        'Top model picker me tumhare saare models aa jayenge',
+      ],
+      code: `URL :  ${openaiBase}
+Key :  ${displayKey}`,
+      note: 'LibreChat, LobeChat, AnythingLLM, SillyTavern (OpenAI Custom preset), TypingMind — sab me same URL + key pattern chalega.',
     },
     'curl': {
       lang: 'bash',
@@ -325,6 +512,25 @@ const r = await client.chat.completions.create({
 });
 console.log(r.choices[0].message.content);`,
     },
+    'vercel-ai': {
+      lang: 'typescript',
+      steps: ['`npm i ai @ai-sdk/openai-compatible` → ye snippet chalao'],
+      code: `import { generateText } from "ai";
+import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
+
+const edgeRouter = createOpenAICompatible({
+  name: "edge-router",
+  baseURL: "${openaiBase}",
+  apiKey: "${displayKey}",
+});
+
+const { text } = await generateText({
+  model: edgeRouter("${effModel}"),
+  prompt: "Hello from my own provider!",
+});
+console.log(text);`,
+      note: 'Streaming UI chahiye? `streamText` + `toDataStreamResponse()` — same provider object.',
+    },
   };
   const active = snippets[client];
 
@@ -349,9 +555,21 @@ console.log(r.choices[0].message.content);`,
       <div className="relative z-10 space-y-6 sm:space-y-8">
         {/* HERO */}
         <div className="cx-fade-up pt-2 text-center sm:pt-6">
-          <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-emerald-400/30 bg-emerald-400/10 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.2em] text-emerald-300 sm:text-xs">
-            <Sparkles className="h-3.5 w-3.5" />
-            Your own AI provider
+          <div className="mb-3 flex flex-wrap items-center justify-center gap-2">
+            <span className="inline-flex items-center gap-2 rounded-full border border-emerald-400/30 bg-emerald-400/10 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.2em] text-emerald-300 sm:text-xs">
+              <Sparkles className="h-3.5 w-3.5" />
+              Your own AI provider
+            </span>
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-rose-400/30 bg-rose-400/10 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.2em] text-rose-300 sm:text-xs">
+              <span className="relative flex h-2 w-2">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-rose-400 opacity-75" />
+                <span className="relative inline-flex h-2 w-2 rounded-full bg-rose-400" />
+              </span>
+              Live
+            </span>
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-cyan-400/30 bg-cyan-400/10 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.2em] text-cyan-300 sm:text-xs">
+              27 providers · 40 models · 18 apps
+            </span>
           </div>
           <h1 style={DISPLAY} className="mx-auto max-w-3xl text-3xl font-extrabold leading-tight tracking-tight text-white sm:text-5xl">
             One key. Every model. <span className="cx-gradient-text">Any app.</span>
@@ -421,6 +639,29 @@ console.log(r.choices[0].message.content);`,
               </button>
             )}
           </div>
+
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <button
+              type="button"
+              disabled={!masterKey || verifying}
+              onClick={handleVerifyKey}
+              className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl border border-cyan-400/30 bg-cyan-400/10 px-4 py-2.5 text-xs font-extrabold uppercase tracking-wider text-cyan-200 transition-all hover:bg-cyan-400/20 disabled:opacity-40"
+            >
+              {verifying ? <Loader2 className="h-4 w-4 animate-spin" /> : <BadgeCheck className="h-4 w-4" />}
+              {verifying ? 'Verifying...' : 'Verify my key is live'}
+            </button>
+            <button
+              type="button"
+              onClick={handleAddFreeKey}
+              title="Pollinations free tier — signup nahi, key nahi, bas chalao"
+              className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl border border-amber-400/30 bg-amber-400/10 px-4 py-2.5 text-xs font-extrabold uppercase tracking-wider text-amber-200 transition-all hover:bg-amber-400/20"
+            >
+              <Gift className="h-4 w-4" /> Add FREE key — no signup
+            </button>
+          </div>
+          {verifyMsg && (
+            <div className={`mt-2 rounded-xl border p-3 text-[11px] leading-relaxed sm:text-xs ${verifyMsg.includes('LIVE') ? 'border-emerald-400/30 bg-emerald-400/10 text-emerald-100' : 'border-rose-500/30 bg-rose-500/10 text-rose-100'}`}>{verifyMsg}</div>
+          )}
 
           <div className="cx-code mt-3 rounded-2xl p-3 sm:p-4">
             <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
@@ -593,7 +834,7 @@ console.log(r.choices[0].message.content);`,
               </button>
             </div>
             {ceError && <div className="mt-2 rounded-xl border border-rose-500/30 bg-rose-500/10 p-2.5 text-[11px] text-rose-200">{ceError}</div>}
-            <p className="mt-2 text-[11px] leading-relaxed text-neutral-500">Add karne ke baad <strong className="text-neutral-300">TEST</strong> dabao — green aaye to master key <strong className="text-neutral-300">Regenerate</strong> karo, endpoint andar aa jayega aur Tester + sab CLIs me chalega.</p>
+            <p className="mt-2 text-[11px] leading-relaxed text-neutral-500">Add karne ke baad <strong className="text-neutral-300">TEST</strong> dabao — green aaye to master key <strong className="text-neutral-300">Regenerate</strong> karo, endpoint andar aa jayega aur Tester + sab CLIs me chalega. Ollama/LM Studio localhost pe? Use <strong className="text-neutral-300">ngrok / cloudflared tunnel</strong> se https URL banao → wahi yaha add karo.</p>
           </div>
 
           {/* cards */}

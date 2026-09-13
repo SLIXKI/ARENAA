@@ -99,11 +99,11 @@ export const ProviderKeysModal: React.FC<ProviderKeysModalProps> = ({
           <div className="space-y-1">
             <div className="flex items-center gap-2">
               <Key className="w-4 h-4 text-emerald-400" />
-              <span className="text-[10px] text-neutral-400 uppercase tracking-widest">18 PROVIDERS • {MAX_KEYS_PER_PROVIDER} KEYS EACH • SMART ROTATION</span>
+              <span className="text-[10px] text-neutral-400 uppercase tracking-widest">27 PROVIDERS • {MAX_KEYS_PER_PROVIDER} KEYS EACH • SMART ROTATION</span>
             </div>
             <h2 className="text-lg font-bold uppercase text-white">Provider Keys</h2>
             <p className="text-[11px] text-neutral-400 font-sans">
-              Kisi bhi provider ki jitni chaaho keys dalo — Gemini, Groq, OpenRouter, Cerebras, OpenAI, Anthropic, DeepSeek, Mistral, xAI, Perplexity, Together, Fireworks, SiliconFlow, Novita, Hyperbolic, Chutes, GLHF, Cohere.
+              Kisi bhi provider ki jitni chaaho keys dalo — Gemini, Groq, OpenRouter, Cerebras, OpenAI, Anthropic, DeepSeek, Mistral, xAI, Perplexity, Together, Fireworks, SiliconFlow, Novita, Hyperbolic, Chutes, GLHF, Cohere, Zhipu, Qwen, Kimi, GitHub Models, HuggingFace, SambaNova, Nebius, DeepInfra, Pollinations (free, no key).
               Prefix se auto-pehchan; `sk-...` jaisi ambiguous keys pe provider tag select karo. 429/exhausted pe automatic next key — MONITOR tab me live health dekho.
             </p>
           </div>

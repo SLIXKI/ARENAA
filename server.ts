@@ -54,11 +54,20 @@ const UPSTREAMS: Record<string, { name: string; baseUrl: string; defaultModel: s
   "prov-chutes": { name: "Chutes", baseUrl: "https://llm.chutes.ai/v1", defaultModel: "deepseek-ai/DeepSeek-V3" },
   "prov-glhf": { name: "GLHF", baseUrl: "https://glhf.chat/api/openai/v1", defaultModel: "hf:meta-llama/Llama-3.3-70B-Instruct" },
   "prov-cohere": { name: "Cohere", baseUrl: "https://api.cohere.ai/compatibility/v1", defaultModel: "command-r-plus" },
+  "prov-zhipu": { name: "Zhipu GLM", baseUrl: "https://open.bigmodel.cn/api/paas/v4", defaultModel: "glm-4-flash" },
+  "prov-qwen": { name: "Alibaba Qwen", baseUrl: "https://dashscope.aliyuncs.com/compatible-mode/v1", defaultModel: "qwen-turbo" },
+  "prov-moonshot": { name: "Moonshot Kimi", baseUrl: "https://api.moonshot.cn/v1", defaultModel: "kimi-k2-0711-preview" },
+  "prov-githubmodels": { name: "GitHub Models", baseUrl: "https://models.github.ai/inference", defaultModel: "openai/gpt-4o-mini" },
+  "prov-huggingface": { name: "HuggingFace", baseUrl: "https://router.huggingface.co/v1", defaultModel: "meta-llama/Llama-3.3-70B-Instruct" },
+  "prov-sambanova": { name: "SambaNova", baseUrl: "https://api.sambanova.ai/v1", defaultModel: "Meta-Llama-3.3-70B-Instruct" },
+  "prov-nebius": { name: "Nebius", baseUrl: "https://api.studio.nebius.com/v1", defaultModel: "Qwen/Qwen2.5-72B-Instruct" },
+  "prov-deepinfra": { name: "DeepInfra", baseUrl: "https://api.deepinfra.com/v1/openai", defaultModel: "meta-llama/Meta-Llama-3.1-8B-Instruct" },
+  "prov-pollinations": { name: "Pollinations", baseUrl: "https://text.pollinations.ai/openai", defaultModel: "openai" },
 };
 
 const KNOWN_UPSTREAMS_LOCAL = new Set(Object.keys(UPSTREAMS));
 
-const UPSTREAM_PRIORITY = ["prov-gemini","prov-groq","prov-cerebras","prov-openrouter","prov-deepseek","prov-mistral","prov-together","prov-fireworks","prov-siliconflow","prov-novita","prov-hyperbolic","prov-chutes","prov-glhf","prov-openai","prov-anthropic","prov-xai","prov-perplexity","prov-cohere"];
+const UPSTREAM_PRIORITY = ["prov-gemini","prov-groq","prov-cerebras","prov-openrouter","prov-deepseek","prov-mistral","prov-together","prov-fireworks","prov-siliconflow","prov-novita","prov-hyperbolic","prov-chutes","prov-glhf","prov-openai","prov-anthropic","prov-xai","prov-perplexity","prov-cohere","prov-zhipu","prov-qwen","prov-moonshot","prov-sambanova","prov-nebius","prov-deepinfra","prov-huggingface","prov-githubmodels","prov-pollinations"];
 
 const MODEL_UPSTREAM: Record<string, string> = {
   "gemini-flash-latest": "prov-gemini",
@@ -90,6 +99,17 @@ const MODEL_UPSTREAM: Record<string, string> = {
   "deepseek-ai/DeepSeek-V3": "prov-chutes",
   "hf:meta-llama/Llama-3.3-70B-Instruct": "prov-glhf", "hf:Qwen/Qwen2.5-72B-Instruct": "prov-glhf",
   "command-r-plus": "prov-cohere", "command-r": "prov-cohere",
+  "glm-4-flash": "prov-zhipu", "glm-4.5-flash": "prov-zhipu", "glm-4.5": "prov-zhipu",
+  "qwen-turbo": "prov-qwen", "qwen-plus": "prov-qwen", "qwen-max": "prov-qwen",
+  "moonshot-v1-8k": "prov-moonshot", "moonshot-v1-32k": "prov-moonshot", "moonshot-v1-128k": "prov-moonshot",
+  "kimi-k2-0711-preview": "prov-moonshot",
+  "openai/gpt-4o-mini": "prov-githubmodels", "openai/gpt-4o": "prov-githubmodels",
+  "meta/Llama-3.3-70B-Instruct": "prov-githubmodels", "deepseek/DeepSeek-V3-0324": "prov-githubmodels",
+  "mistral-ai/mistral-small-2503": "prov-githubmodels", "microsoft/Phi-4": "prov-githubmodels",
+  "meta-llama/Llama-3.3-70B-Instruct": "prov-huggingface",
+  "Meta-Llama-3.3-70B-Instruct": "prov-sambanova",
+  "Qwen/Qwen2.5-72B-Instruct": "prov-nebius",
+  "openai": "prov-pollinations", "openai-fast": "prov-pollinations",
 };
 
 function detectKeyUpstream(key: string): string {
@@ -104,6 +124,9 @@ function detectKeyUpstream(key: string): string {
   if (k.startsWith("pplx-")) return "prov-perplexity";
   if (k.startsWith("fw_")) return "prov-fireworks";
   if (k.startsWith("glhf_")) return "prov-glhf";
+  if (k.startsWith("ghp_") || k.startsWith("github_pat_") || k.startsWith("gho_")) return "prov-githubmodels";
+  if (k.startsWith("hf_")) return "prov-huggingface";
+  if (k === "pollinations-free-tier" || k.startsWith("pollinations-")) return "prov-pollinations";
   return "unknown";
 }
 
@@ -118,6 +141,9 @@ function upstreamForModel(model: string): string | null {
   if (model.startsWith("grok")) return "prov-xai";
   if (model.startsWith("sonar")) return "prov-perplexity";
   if (model.startsWith("command-")) return "prov-cohere";
+  if (model.startsWith("glm-")) return "prov-zhipu";
+  if (model.startsWith("qwen")) return "prov-qwen";
+  if (model.startsWith("moonshot") || model.startsWith("kimi")) return "prov-moonshot";
   if (model.startsWith("hf:")) return "prov-glhf";
   if (model.startsWith("accounts/")) return "prov-fireworks";
   if (model.endsWith(":free")) return "prov-openrouter";
@@ -177,7 +203,7 @@ function isAllowedUpstream(raw: string): boolean {
     const u = new URL(raw);
     if (u.protocol !== "https:") return false;
     const host = u.hostname.toLowerCase();
-    if (/(^|\.)(generativelanguage\.googleapis\.com|api\.groq\.com|openrouter\.ai|api\.cerebras\.ai|api\.openai\.com|api\.anthropic\.com|api\.deepseek\.com|api\.mistral\.ai|api\.x\.ai|api\.perplexity\.ai|api\.together\.xyz|api\.fireworks\.ai|api\.siliconflow\.cn|api\.novita\.ai|api\.hyperbolic\.xyz|llm\.chutes\.ai|chutes\.ai|glhf\.chat|api\.cohere\.ai)$/.test(host)) return true;
+    if (/(^|\.)(generativelanguage\.googleapis\.com|api\.groq\.com|openrouter\.ai|api\.cerebras\.ai|api\.openai\.com|api\.anthropic\.com|api\.deepseek\.com|api\.mistral\.ai|api\.x\.ai|api\.perplexity\.ai|api\.together\.xyz|api\.fireworks\.ai|api\.siliconflow\.cn|api\.novita\.ai|api\.hyperbolic\.xyz|llm\.chutes\.ai|chutes\.ai|glhf\.chat|api\.cohere\.ai|open\.bigmodel\.cn|dashscope\.aliyuncs\.com|api\.moonshot\.cn|models\.github\.ai|router\.huggingface\.co|api\.sambanova\.ai|api\.studio\.nebius\.com|api\.deepinfra\.com|text\.pollinations\.ai)$/.test(host)) return true;
     if (!host.includes(".")) return false;
     if (host === "localhost" || host.endsWith(".localhost") || host.endsWith(".local") || host.endsWith(".internal")) return false;
     if (/^(10\.|127\.|192\.168\.|169\.254\.|0\.0\.0\.0)/.test(host)) return false;
@@ -465,6 +491,14 @@ const UNIVERSAL_MODELS_LOCAL: { id: string; upstream: string }[] = [
   { id: "deepseek-ai/DeepSeek-V3", upstream: "prov-chutes" },
   { id: "hf:meta-llama/Llama-3.3-70B-Instruct", upstream: "prov-glhf" },
   { id: "command-r-plus", upstream: "prov-cohere" },
+  { id: "glm-4-flash", upstream: "prov-zhipu" },
+  { id: "qwen-turbo", upstream: "prov-qwen" },
+  { id: "kimi-k2-0711-preview", upstream: "prov-moonshot" },
+  { id: "openai/gpt-4o-mini", upstream: "prov-githubmodels" },
+  { id: "meta-llama/Llama-3.3-70B-Instruct", upstream: "prov-huggingface" },
+  { id: "Meta-Llama-3.3-70B-Instruct", upstream: "prov-sambanova" },
+  { id: "Qwen/Qwen2.5-72B-Instruct", upstream: "prov-nebius" },
+  { id: "openai", upstream: "prov-pollinations" },
 ];
 
 app.get("/api/v1/models", (req, res) => {
@@ -563,8 +597,8 @@ CRITICAL IDENTITY & CONTEXT AWARENESS (WHERE YOU ARE & WHAT YOU ARE IN):
    - Daily Quota & Cost Tracker: Real-time request and token consumption meters, cost tracking, and reset buttons.
    - Telemetry & Logs: Performance charts, p95/p99 latency distribution, and regional health metrics.
    - CONNECT (your own AI provider): Generates the user's UNIQUE master key (er1...) that works as their own provider in Claude Code (ANTHROPIC_BASE_URL=<host>/api/anthropic), OpenCode, Cline, Continue, Cursor, curl, Python, Node. Also manages CUSTOM ENDPOINTS (user's own OpenAI-compat base URL + key + model) and Cloudflare Worker self-host code.
-   - API Monitor: Live per-key health dashboard — which key is WORKING / EXHAUSTED (429 cooldown) / DEAD, per-key latency + test buttons. 18 providers supported (Gemini, Groq, OpenRouter, Cerebras, OpenAI, Anthropic, DeepSeek, Mistral, xAI, Perplexity, Together, Fireworks, SiliconFlow, Novita, Hyperbolic, Chutes, GLHF, Cohere) with smart auto-rotation.
-   - API Monitor: Live per-key health dashboard — which key is WORKING / EXHAUSTED (429 cooldown) / DEAD, per-key latency + test buttons. 18 providers supported (Gemini, Groq, OpenRouter, Cerebras, OpenAI, Anthropic, DeepSeek, Mistral, xAI, Perplexity, Together, Fireworks, SiliconFlow, Novita, Hyperbolic, Chutes, GLHF, Cohere) with smart auto-rotation.
+   - API Monitor: Live per-key health dashboard — which key is WORKING / EXHAUSTED (429 cooldown) / DEAD, per-key latency + test buttons. 27 providers supported (Gemini, Groq, OpenRouter, Cerebras, OpenAI, Anthropic, DeepSeek, Mistral, xAI, Perplexity, Together, Fireworks, SiliconFlow, Novita, Hyperbolic, Chutes, GLHF, Cohere, Zhipu GLM, Qwen, Moonshot/Kimi, GitHub Models, HuggingFace, SambaNova, Nebius, DeepInfra, Pollinations-free) with smart auto-rotation.
+   - API Monitor: Live per-key health dashboard — which key is WORKING / EXHAUSTED (429 cooldown) / DEAD, per-key latency + test buttons. 27 providers supported (Gemini, Groq, OpenRouter, Cerebras, OpenAI, Anthropic, DeepSeek, Mistral, xAI, Perplexity, Together, Fireworks, SiliconFlow, Novita, Hyperbolic, Chutes, GLHF, Cohere, Zhipu GLM, Qwen, Moonshot/Kimi, GitHub Models, HuggingFace, SambaNova, Nebius, DeepInfra, Pollinations-free) with smart auto-rotation.
 
 4. WHO ARE YOU & WHAT ARE YOUR CAPABILITIES? (Tum kya kar sakte ho?)
    You have 100% FULL ADMINISTRATIVE ROOT CONTROL over this entire Edge Router! You are NOT a detached external chatbot — you are the master controller of this application.

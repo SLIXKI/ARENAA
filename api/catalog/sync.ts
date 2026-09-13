@@ -19,6 +19,15 @@ const OPENAI_COMPAT_SYNC: Record<string, string> = {
   "prov-chutes": "https://llm.chutes.ai/v1/models",
   "prov-glhf": "https://glhf.chat/api/openai/v1/models",
   "prov-cohere": "https://api.cohere.ai/compatibility/v1/models",
+  "prov-zhipu": "https://open.bigmodel.cn/api/paas/v4/models",
+  "prov-qwen": "https://dashscope.aliyuncs.com/compatible-mode/v1/models",
+  "prov-moonshot": "https://api.moonshot.cn/v1/models",
+  "prov-githubmodels": "https://models.github.ai/inference/models",
+  "prov-huggingface": "https://router.huggingface.co/v1/models",
+  "prov-sambanova": "https://api.sambanova.ai/v1/models",
+  "prov-nebius": "https://api.studio.nebius.com/v1/models",
+  "prov-deepinfra": "https://api.deepinfra.com/v1/openai/models",
+  "prov-pollinations": "https://text.pollinations.ai/openai/models",
 };
 
 function firstKey(v: any): string {

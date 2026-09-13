@@ -45,6 +45,15 @@ export const UNIVERSAL_MODELS: string[] = [
   'deepseek-ai/DeepSeek-V3',
   'hf:meta-llama/Llama-3.3-70B-Instruct',
   'command-r-plus',
+  // Zhipu / Qwen / Moonshot / GitHub Models / HuggingFace / SambaNova / Nebius / Pollinations
+  'glm-4-flash',
+  'qwen-turbo',
+  'kimi-k2-0711-preview',
+  'openai/gpt-4o-mini',
+  'meta-llama/Llama-3.3-70B-Instruct',
+  'Meta-Llama-3.3-70B-Instruct',
+  'Qwen/Qwen2.5-72B-Instruct',
+  'openai',
 ];
 
 export const INITIAL_PROVIDERS: Provider[] = [

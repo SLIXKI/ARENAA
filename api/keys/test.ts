@@ -8,7 +8,7 @@ function allowedBase(raw: string): boolean {
     const u = new URL(raw);
     if (u.protocol !== "https:") return false;
     const host = u.hostname.toLowerCase();
-    if (/(^|\.)(generativelanguage\.googleapis\.com|api\.groq\.com|openrouter\.ai|api\.cerebras\.ai|api\.openai\.com|api\.anthropic\.com|api\.deepseek\.com|api\.mistral\.ai|api\.x\.ai|api\.perplexity\.ai|api\.together\.xyz|api\.fireworks\.ai|api\.siliconflow\.cn|api\.novita\.ai|api\.hyperbolic\.xyz|llm\.chutes\.ai|chutes\.ai|glhf\.chat|api\.cohere\.ai)$/.test(host)) return true;
+    if (/(^|\.)(generativelanguage\.googleapis\.com|api\.groq\.com|openrouter\.ai|api\.cerebras\.ai|api\.openai\.com|api\.anthropic\.com|api\.deepseek\.com|api\.mistral\.ai|api\.x\.ai|api\.perplexity\.ai|api\.together\.xyz|api\.fireworks\.ai|api\.siliconflow\.cn|api\.novita\.ai|api\.hyperbolic\.xyz|llm\.chutes\.ai|chutes\.ai|glhf\.chat|api\.cohere\.ai|open\.bigmodel\.cn|dashscope\.aliyuncs\.com|api\.moonshot\.cn|models\.github\.ai|router\.huggingface\.co|api\.sambanova\.ai|api\.studio\.nebius\.com|api\.deepinfra\.com|text\.pollinations\.ai)$/.test(host)) return true;
     if (!host.includes(".")) return false;
     if (host === "localhost" || host.endsWith(".localhost") || host.endsWith(".local") || host.endsWith(".internal")) return false;
     if (/^(10\.|127\.|192\.168\.|169\.254\.|0\.0\.0\.0)/.test(host)) return false;
@@ -36,6 +36,15 @@ const TEST_MODELS: Record<string, { baseUrl: string; model: string; native?: str
   "prov-chutes": { baseUrl: "https://llm.chutes.ai/v1", model: "deepseek-ai/DeepSeek-V3" },
   "prov-glhf": { baseUrl: "https://glhf.chat/api/openai/v1", model: "hf:meta-llama/Llama-3.3-70B-Instruct" },
   "prov-cohere": { baseUrl: "https://api.cohere.ai/compatibility/v1", model: "command-r" },
+  "prov-zhipu": { baseUrl: "https://open.bigmodel.cn/api/paas/v4", model: "glm-4-flash" },
+  "prov-qwen": { baseUrl: "https://dashscope.aliyuncs.com/compatible-mode/v1", model: "qwen-turbo" },
+  "prov-moonshot": { baseUrl: "https://api.moonshot.cn/v1", model: "moonshot-v1-8k" },
+  "prov-githubmodels": { baseUrl: "https://models.github.ai/inference", model: "openai/gpt-4o-mini" },
+  "prov-huggingface": { baseUrl: "https://router.huggingface.co/v1", model: "meta-llama/Llama-3.3-70B-Instruct" },
+  "prov-sambanova": { baseUrl: "https://api.sambanova.ai/v1", model: "Meta-Llama-3.3-70B-Instruct" },
+  "prov-nebius": { baseUrl: "https://api.studio.nebius.com/v1", model: "Qwen/Qwen2.5-72B-Instruct" },
+  "prov-deepinfra": { baseUrl: "https://api.deepinfra.com/v1/openai", model: "meta-llama/Meta-Llama-3.1-8B-Instruct" },
+  "prov-pollinations": { baseUrl: "https://text.pollinations.ai/openai", model: "openai" },
 };
 
 function detect(key: string): string {
@@ -50,6 +59,9 @@ function detect(key: string): string {
   if (k.startsWith("pplx-")) return "prov-perplexity";
   if (k.startsWith("fw_")) return "prov-fireworks";
   if (k.startsWith("glhf_")) return "prov-glhf";
+  if (k.startsWith("ghp_") || k.startsWith("github_pat_") || k.startsWith("gho_")) return "prov-githubmodels";
+  if (k.startsWith("hf_")) return "prov-huggingface";
+  if (k === "pollinations-free-tier" || k.startsWith("pollinations-")) return "prov-pollinations";
   return "unknown";
 }
 

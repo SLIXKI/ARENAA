@@ -21,6 +21,15 @@ export const UPSTREAM_META: Record<string, { name: string; short: string }> = {
   "prov-chutes": { name: "Chutes", short: "Chutes" },
   "prov-glhf": { name: "GLHF", short: "GLHF" },
   "prov-cohere": { name: "Cohere", short: "Cohere" },
+  "prov-zhipu": { name: "Zhipu GLM", short: "Zhipu" },
+  "prov-qwen": { name: "Alibaba Qwen", short: "Qwen" },
+  "prov-moonshot": { name: "Moonshot Kimi", short: "Kimi" },
+  "prov-githubmodels": { name: "GitHub Models", short: "GH Models" },
+  "prov-huggingface": { name: "HuggingFace", short: "HuggingFace" },
+  "prov-sambanova": { name: "SambaNova", short: "SambaNova" },
+  "prov-nebius": { name: "Nebius", short: "Nebius" },
+  "prov-deepinfra": { name: "DeepInfra", short: "DeepInfra" },
+  "prov-pollinations": { name: "Pollinations", short: "Pollinations" },
   unknown: { name: "Unknown", short: "?" },
 };
 
@@ -92,6 +101,36 @@ export const MODEL_UPSTREAM: Record<string, string> = {
   // Cohere
   "command-r-plus": "prov-cohere",
   "command-r": "prov-cohere",
+  // Zhipu GLM
+  "glm-4-flash": "prov-zhipu",
+  "glm-4.5-flash": "prov-zhipu",
+  "glm-4.5": "prov-zhipu",
+  // Qwen
+  "qwen-turbo": "prov-qwen",
+  "qwen-plus": "prov-qwen",
+  "qwen-max": "prov-qwen",
+  // Moonshot / Kimi
+  "moonshot-v1-8k": "prov-moonshot",
+  "moonshot-v1-32k": "prov-moonshot",
+  "moonshot-v1-128k": "prov-moonshot",
+  "kimi-k2-0711-preview": "prov-moonshot",
+  // GitHub Models (namespaced ids)
+  "openai/gpt-4o-mini": "prov-githubmodels",
+  "openai/gpt-4o": "prov-githubmodels",
+  "meta/Llama-3.3-70B-Instruct": "prov-githubmodels",
+  "deepseek/DeepSeek-V3-0324": "prov-githubmodels",
+  "mistral-ai/mistral-small-2503": "prov-githubmodels",
+  "microsoft/Phi-4": "prov-githubmodels",
+  // HuggingFace
+  "meta-llama/Llama-3.3-70B-Instruct": "prov-huggingface",
+  // SambaNova
+  "Meta-Llama-3.3-70B-Instruct": "prov-sambanova",
+  // Nebius
+  "Qwen/Qwen2.5-72B-Instruct": "prov-nebius",
+  // DeepInfra shares HF-style ids (served via rotation; canonical id stays with Hyperbolic)
+  // Pollinations (free, no key)
+  openai: "prov-pollinations",
+  "openai-fast": "prov-pollinations",
 };
 
 export function upstreamForModel(model: string): string | null {
@@ -105,9 +144,12 @@ export function upstreamForModel(model: string): string | null {
   if (model.startsWith("grok")) return "prov-xai";
   if (model.startsWith("sonar")) return "prov-perplexity";
   if (model.startsWith("command-")) return "prov-cohere";
+  if (model.startsWith("glm-")) return "prov-zhipu";
+  if (model.startsWith("qwen")) return "prov-qwen";
+  if (model.startsWith("moonshot") || model.startsWith("kimi")) return "prov-moonshot";
   if (model.startsWith("hf:")) return "prov-glhf";
   if (model.startsWith("accounts/")) return "prov-fireworks";
-  // OpenRouter free / namespaced catch-alls
+  // OpenRouter free / namespaced catch-alls (exact GitHub-Models ids win above)
   if (model.endsWith(":free")) return "prov-openrouter";
   if (model.startsWith("openai/") || model.startsWith("anthropic/")) return "prov-openrouter";
   return null;

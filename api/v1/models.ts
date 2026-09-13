@@ -72,17 +72,25 @@ const UNIVERSAL_MODELS: { id: string; upstream: string }[] = [
   { id: "deepseek-chat", upstream: "prov-deepseek" },
   { id: "deepseek-reasoner", upstream: "prov-deepseek" },
   { id: "mistral-small-latest", upstream: "prov-mistral" },
-  { id: "mistral-large-latest", upstream: "prov-mistral" },
+  { id: "open-mistral-7b", upstream: "prov-mistral" },
   { id: "grok-3-mini", upstream: "prov-xai" },
   { id: "sonar", upstream: "prov-perplexity" },
-  { id: "sonar-pro", upstream: "prov-perplexity" },
   { id: "meta-llama/Llama-3.3-70B-Instruct-Turbo", upstream: "prov-together" },
   { id: "accounts/fireworks/models/llama-v3p1-8b-instruct", upstream: "prov-fireworks" },
   { id: "Qwen/Qwen2.5-7B-Instruct", upstream: "prov-siliconflow" },
   { id: "meta-llama/llama-3.1-8b-instruct", upstream: "prov-novita" },
+  { id: "meta-llama/Meta-Llama-3.1-8B-Instruct", upstream: "prov-hyperbolic" },
   { id: "deepseek-ai/DeepSeek-V3", upstream: "prov-chutes" },
   { id: "hf:meta-llama/Llama-3.3-70B-Instruct", upstream: "prov-glhf" },
   { id: "command-r-plus", upstream: "prov-cohere" },
+  { id: "glm-4-flash", upstream: "prov-zhipu" },
+  { id: "qwen-turbo", upstream: "prov-qwen" },
+  { id: "kimi-k2-0711-preview", upstream: "prov-moonshot" },
+  { id: "openai/gpt-4o-mini", upstream: "prov-githubmodels" },
+  { id: "meta-llama/Llama-3.3-70B-Instruct", upstream: "prov-huggingface" },
+  { id: "Meta-Llama-3.3-70B-Instruct", upstream: "prov-sambanova" },
+  { id: "Qwen/Qwen2.5-72B-Instruct", upstream: "prov-nebius" },
+  { id: "openai", upstream: "prov-pollinations" },
 ];
 
 function upstreamOfKey(k: string): string {
@@ -97,6 +105,9 @@ function upstreamOfKey(k: string): string {
   if (key.startsWith("pplx-")) return "prov-perplexity";
   if (key.startsWith("fw_")) return "prov-fireworks";
   if (key.startsWith("glhf_")) return "prov-glhf";
+  if (key.startsWith("ghp_") || key.startsWith("github_pat_") || key.startsWith("gho_")) return "prov-githubmodels";
+  if (key.startsWith("hf_")) return "prov-huggingface";
+  if (key === "pollinations-free-tier" || key.startsWith("pollinations-")) return "prov-pollinations";
   return "unknown";
 }
 

@@ -47,6 +47,15 @@ export const UPSTREAM_IDS: string[] = [
   "prov-chutes",
   "prov-glhf",
   "prov-cohere",
+  "prov-zhipu",
+  "prov-qwen",
+  "prov-moonshot",
+  "prov-githubmodels",
+  "prov-huggingface",
+  "prov-sambanova",
+  "prov-nebius",
+  "prov-deepinfra",
+  "prov-pollinations",
 ];
 
 export function isKnownUpstream(id: string): boolean {
@@ -68,6 +77,9 @@ export function detectKeyUpstream(key: string): string {
   if (k.startsWith("pplx-")) return "prov-perplexity";
   if (k.startsWith("fw_")) return "prov-fireworks";
   if (k.startsWith("glhf_")) return "prov-glhf";
+  if (k.startsWith("ghp_") || k.startsWith("github_pat_") || k.startsWith("gho_")) return "prov-githubmodels";
+  if (k.startsWith("hf_")) return "prov-huggingface";
+  if (k === "pollinations-free-tier" || k.startsWith("pollinations-")) return "prov-pollinations";
   return "unknown";
 }
 
@@ -90,6 +102,15 @@ export const UPSTREAM_NAMES: Record<string, string> = {
   "prov-chutes": "Chutes",
   "prov-glhf": "GLHF",
   "prov-cohere": "Cohere",
+  "prov-zhipu": "Zhipu GLM",
+  "prov-qwen": "Qwen",
+  "prov-moonshot": "Moonshot/Kimi",
+  "prov-githubmodels": "GitHub Models",
+  "prov-huggingface": "HuggingFace",
+  "prov-sambanova": "SambaNova",
+  "prov-nebius": "Nebius",
+  "prov-deepinfra": "DeepInfra",
+  "prov-pollinations": "Pollinations (FREE)",
   unknown: "?",
 };
 

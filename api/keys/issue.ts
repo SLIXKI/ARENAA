@@ -17,6 +17,8 @@ const KNOWN_U = new Set([
   "prov-anthropic", "prov-deepseek", "prov-mistral", "prov-xai", "prov-perplexity",
   "prov-together", "prov-fireworks", "prov-siliconflow", "prov-novita",
   "prov-hyperbolic", "prov-chutes", "prov-glhf", "prov-cohere",
+  "prov-zhipu", "prov-qwen", "prov-moonshot", "prov-githubmodels", "prov-huggingface",
+  "prov-sambanova", "prov-nebius", "prov-deepinfra", "prov-pollinations",
 ]);
 
 // SSRF guard for custom bases: public https only (catalog hosts always OK).
@@ -25,7 +27,7 @@ function isAllowedBase(raw: string): boolean {
     const u = new URL(raw);
     if (u.protocol !== "https:") return false;
     const host = u.hostname.toLowerCase();
-    if (/(^|\.)(generativelanguage\.googleapis\.com|api\.groq\.com|openrouter\.ai|api\.cerebras\.ai|api\.openai\.com|api\.anthropic\.com|api\.deepseek\.com|api\.mistral\.ai|api\.x\.ai|api\.perplexity\.ai|api\.together\.xyz|api\.fireworks\.ai|api\.siliconflow\.cn|api\.novita\.ai|api\.hyperbolic\.xyz|llm\.chutes\.ai|chutes\.ai|glhf\.chat|api\.cohere\.ai)$/.test(host)) return true;
+    if (/(^|\.)(generativelanguage\.googleapis\.com|api\.groq\.com|openrouter\.ai|api\.cerebras\.ai|api\.openai\.com|api\.anthropic\.com|api\.deepseek\.com|api\.mistral\.ai|api\.x\.ai|api\.perplexity\.ai|api\.together\.xyz|api\.fireworks\.ai|api\.siliconflow\.cn|api\.novita\.ai|api\.hyperbolic\.xyz|llm\.chutes\.ai|chutes\.ai|glhf\.chat|api\.cohere\.ai|open\.bigmodel\.cn|dashscope\.aliyuncs\.com|api\.moonshot\.cn|models\.github\.ai|router\.huggingface\.co|api\.sambanova\.ai|api\.studio\.nebius\.com|api\.deepinfra\.com|text\.pollinations\.ai)$/.test(host)) return true;
     if (!host.includes(".")) return false;
     if (host === "localhost" || host.endsWith(".localhost") || host.endsWith(".local") || host.endsWith(".internal")) return false;
     if (/^(10\.|127\.|192\.168\.|169\.254\.|0\.0\.0\.0)/.test(host)) return false;
