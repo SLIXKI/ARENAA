@@ -85,76 +85,10 @@ function masterEncrypt(payload: any): string {
   return MASTER_PREFIX + Buffer.concat([iv, ct, c.getAuthTag()]).toString("base64url");
 }
 
-// --- Best-effort per-IP rate limiting ---------------------------------------
-// These endpoints are unauthenticated and cause outbound work: /api/keys/test
-// dials an arbitrary allowed host, /api/catalog/sync fans out to 26 providers,
-// /api/keys/issue runs AES-GCM + deflate. Without a limit they are an open
-// probe/amplification primitive.
-//
-// Honest caveat: the counters are per warm instance, so on serverless this blunts
-// casual abuse rather than defeating a distributed attacker. It is deliberately
-// dependency-free (no Upstash round-trip on the hot path) and fails OPEN — if
-// anything goes wrong the request proceeds, because blocking legitimate traffic
-// is worse than the abuse this deters.
-const RATE_WINDOW_MS = 60_000;
-const RATE_MAX_BUCKETS = 5_000;
-const rateBuckets = new Map<string, { count: number; resetAt: number }>();
-
-function clientIp(req: any): string {
-  const xff = req?.headers?.["x-forwarded-for"];
-  const first = Array.isArray(xff) ? xff[0] : typeof xff === "string" ? xff.split(",")[0] : "";
-  const ip = (first || req?.headers?.["x-real-ip"] || req?.socket?.remoteAddress || "unknown").trim();
-  return ip.slice(0, 64);
-}
-
-function rateLimit(req: any, bucket: string, max: number): { ok: boolean; retryAfter: number; remaining: number; resetAt: number } {
-  try {
-    const now = Date.now();
-    const key = `${bucket}:${clientIp(req)}`;
-    // Opportunistic prune so a long-lived instance cannot grow the map forever.
-    if (rateBuckets.size > RATE_MAX_BUCKETS) {
-      for (const [k, v] of rateBuckets) if (now >= v.resetAt) rateBuckets.delete(k);
-    }
-    const existing = rateBuckets.get(key);
-    if (!existing || now >= existing.resetAt) {
-      rateBuckets.set(key, { count: 1, resetAt: now + RATE_WINDOW_MS });
-      return { ok: true, retryAfter: 0, remaining: max - 1, resetAt: now + RATE_WINDOW_MS };
-    }
-    existing.count += 1;
-    if (existing.count > max) {
-      return { ok: false, retryAfter: Math.max(1, Math.ceil((existing.resetAt - now) / 1000)), remaining: 0, resetAt: existing.resetAt };
-    }
-    return { ok: true, retryAfter: 0, remaining: max - existing.count, resetAt: existing.resetAt };
-  } catch {
-    // Fail open: a limiter bug must never take the gateway down for real users.
-    return { ok: true, retryAfter: 0, remaining: max, resetAt: Date.now() + RATE_WINDOW_MS };
-  }
-}
-
-/** Reject with 429 + Retry-When-Ready headers, or return null when allowed. */
-function enforceRateLimit(req: any, res: any, bucket: string, max: number): boolean {
-  const verdict = rateLimit(req, bucket, max);
-  res.setHeader?.("X-RateLimit-Limit", String(max));
-  res.setHeader?.("X-RateLimit-Remaining", String(Math.max(0, verdict.remaining)));
-  res.setHeader?.("X-RateLimit-Reset", String(Math.ceil(verdict.resetAt / 1000)));
-  if (verdict.ok) return false;
-  res.setHeader?.("Retry-After", String(verdict.retryAfter));
-  res.status(429).json({
-    error: {
-      message: `Too many requests to ${bucket}. Try again in ${verdict.retryAfter}s.`,
-      type: "rate_limit_error",
-      code: "rate_limited",
-      retry_after_s: verdict.retryAfter,
-    },
-  });
-  return true;
-}
-
 export default async function handler(req: any, res: any) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
   }
-  if (enforceRateLimit(req, res, "keys/issue", 20)) return;
   try {
     const body = req.body || {};
     const input = body.keys && typeof body.keys === "object" ? body.keys : null;

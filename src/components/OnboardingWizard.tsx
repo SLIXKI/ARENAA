@@ -125,7 +125,10 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({
       }
       out.push({ key: t.key, upstream: t.upstream, label: t.label, ok, latencyMs: Math.round(performance.now() - started), error: err });
       setResults([...out]);
-      // Small gap so verifying several keys cannot itself trip a rate limit.
+      // Sequential with a small gap: keeps results appearing progressively as each
+      // key resolves, and avoids opening dozens of simultaneous sockets to the same
+      // upstream at once. This gateway does not rate-limit you - the gap is purely
+      // for readable progress and politeness to the provider.
       await new Promise((r) => setTimeout(r, 350));
     }
     setTesting(false);
