@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Sparkles, Key, Copy, Check, Eye, EyeOff, RefreshCw, Trash2, Plus, Plug, FlaskConical,
   Terminal, ChevronDown, ShieldCheck, Zap, Cpu, Globe, Braces, FileJson, Settings2,
@@ -97,6 +97,11 @@ export const ConnectHub: React.FC<ConnectHubProps> = ({
   const [keysTick, setKeysTick] = useState(0);
   const [verifying, setVerifying] = useState(false);
   const [verifyMsg, setVerifyMsg] = useState('');
+  // Free models as the gateway actually sees them right now - fetched from
+  // /api/v1/models, which asks each upstream you hold a key for. This is what
+  // gets baked into the OpenCode/Cline config snippets below.
+  const [freeModels, setFreeModels] = useState<{ id: string; name: string; upstream: string }[]>([]);
+  const [freeSync, setFreeSync] = useState<{ state: 'idle' | 'loading' | 'live' | 'bundled'; msg: string }>({ state: 'idle', msg: '' });
 
   const customs = useMemo(() => listCustomEndpoints(), [ceTick]);
   const enabledCustoms = customs.filter((c) => c.enabled);
@@ -107,6 +112,33 @@ export const ConnectHub: React.FC<ConnectHubProps> = ({
     } catch { /* ignore */ }
     return 'https://your-app.vercel.app';
   }, []);
+  const loadFreeModels = useCallback(async () => {
+    setFreeSync({ state: 'loading', msg: '' });
+    try {
+      const res = await fetch('/api/v1/models', {
+        headers: masterKey ? { Authorization: `Bearer ${masterKey}` } : {},
+      });
+      if (!res.ok) { setFreeSync({ state: 'idle', msg: '' }); return; }
+      const data = await res.json().catch(() => null);
+      const arr = Array.isArray(data?.data) ? data.data : [];
+      const rows = arr
+        .filter((m: any) => m && typeof m.id === 'string' && m.id)
+        .map((m: any) => ({ id: m.id as string, name: (m.name || m.id) as string, upstream: (m.upstream || '') as string }));
+      setFreeModels(rows);
+      // The gateway reports which upstreams actually answered, so the UI can say
+      // whether this list is live or the bundled fallback. Never guess.
+      const okHdr = (res.headers.get('X-Edge-Sync-Ok') || '').trim();
+      const liveUps = okHdr && okHdr !== 'none' ? okHdr.split(',').filter(Boolean) : [];
+      setFreeSync(liveUps.length > 0
+        ? { state: 'live', msg: `Live from ${liveUps.length} upstream${liveUps.length === 1 ? '' : 's'}: ${liveUps.join(', ')}` }
+        : { state: 'bundled', msg: 'Bundled list — no upstream /models answered (offline or no keys yet).' });
+    } catch {
+      setFreeSync({ state: 'idle', msg: '' });
+    }
+  }, [masterKey]);
+
+  useEffect(() => { loadFreeModels(); }, [loadFreeModels]);
+
   const openaiBase = `${origin}/api/v1`;
   const anthropicBase = `${origin}/api/anthropic`;
   const displayKey = masterKey || 'er1...generate-karo';
@@ -199,7 +231,9 @@ export const ConnectHub: React.FC<ConnectHubProps> = ({
     setVerifying(true);
     setVerifyMsg('');
     try {
-      const res = await fetch('/api/v1/models', { headers: { Authorization: `Bearer ${masterKey}` } });
+      // ?all=true: verification is about what this key can reach at all, so it
+      // must not be narrowed to the free-only default view.
+      const res = await fetch('/api/v1/models?all=true', { headers: { Authorization: `Bearer ${masterKey}` } });
       const data = await res.json().catch(() => null);
       if (!res.ok) {
         setVerifyMsg(`Key fail: ${data?.error?.message || data?.error || 'invalid'} — Regenerate karo.`);
@@ -266,6 +300,23 @@ export const ConnectHub: React.FC<ConnectHubProps> = ({
 
   // ---------- client snippets ----------
   const effModel = customModelInput.trim() || model;
+
+  // Models baked into the generated client configs. Falls back to the single
+  // selected model when the free list has not loaded, so a snippet is never empty.
+  const snippetModels = freeModels.length > 0
+    ? freeModels
+    : [{ id: effModel, name: effModel, upstream: '' }];
+  // A coding agent's picker is useless if it scrolls forever, so cap the baked-in
+  // list. The gateway still serves every free model at /api/v1/models for clients
+  // that discover dynamically.
+  const SNIPPET_MODEL_CAP = 40;
+  const snippetModelsCapped = snippetModels.slice(0, SNIPPET_MODEL_CAP);
+  const snippetModelsJson = snippetModelsCapped
+    .map((m) => `        ${JSON.stringify(m.id)}: { "name": ${JSON.stringify(m.name)} }`)
+    .join(',\n');
+  const snippetModelCountNote = snippetModels.length > SNIPPET_MODEL_CAP
+    ? ` (first ${SNIPPET_MODEL_CAP} of ${snippetModels.length} — full list: ${openaiBase}/models)`
+    : ` (${snippetModels.length})` ;
   const snippets: Record<ClientId, { steps: string[]; code: string; lang: string; note?: string }> = {
     'claude-code': {
       lang: 'bash',
@@ -286,26 +337,28 @@ claude`,
     'opencode': {
       lang: 'json',
       steps: [
-        'Project me `opencode.json` banao (ya existing me provider block add karo)',
-        'Neeche wala block paste karo',
-        '`opencode` chalao → model list me "Edge Router (mine)" select karo',
+        'Project me `opencode.json` banao (ya `~/.config/opencode/opencode.json` me provider block add karo)',
+        'Neeche wala block paste karo — isme tumhare keys ke saare FREE models already listed hai',
+        '`opencode` chalao → `/models` me "Edge Router (free)" select karo',
       ],
       code: `{
   "$schema": "https://opencode.ai/config.json",
+  "model": "edge-router/${snippetModelsCapped[0]?.id || effModel}",
   "provider": {
     "edge-router": {
       "npm": "@ai-sdk/openai-compatible",
-      "name": "Edge Router (mine)",
+      "name": "Edge Router (free)",
       "options": {
         "baseURL": "${openaiBase}",
         "apiKey": "${displayKey}"
       },
       "models": {
-        "${effModel}": { "name": "${effModel} (via my provider)" }
+${snippetModelsJson}
       }
     }
   }
 }`,
+      note: `Free models baked in${snippetModelCountNote}. ${freeSync.state === 'live' ? freeSync.msg : 'List bundled hai — keys add karke Regenerate karo, phir yeh live upstream /models se bharegi.'} Naya OpenCode (Sept 2026+) khud ${openaiBase}/models fetch karta hai, isliye "models" block hata doge to bhi list apne aap aa jayegi — gateway hamesha sirf FREE models lautata hai.`,
     },
     'cline': {
       lang: 'text',

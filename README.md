@@ -90,7 +90,7 @@ npm run dev          # http://localhost:3000  (Express + Vite + WebSocket live v
 |---|---|---|
 | `POST` | `/api/v1/chat/completions` | OpenAI-compatible gateway. Supports `stream`, `tools`, `tool_choice`, multimodal content |
 | `POST` | `/api/anthropic/v1/messages` | Anthropic-compatible gateway. Native `sk-ant-` passthrough, otherwise full translation with SSE |
-| `GET` | `/api/v1/models` | OpenAI model list. With a master key, each model carries a real `available` flag |
+| `GET` | `/api/v1/models` | OpenAI model list, **free models only** by default and synced live from your keys. `?all=true` for the full catalogue |
 | `POST` | `/api/keys/issue` | Mint an encrypted `er1…` master key from your key pool |
 | `POST` | `/api/keys/status` | Validate a master key; returns counts and Gmail tags, **never the keys** |
 | `POST` | `/api/keys/revoke` | Blocklist a master key id in Vercel KV |
@@ -109,6 +109,73 @@ Send your key in any of the standard places — `Authorization: Bearer …`,
 `x-api-key` (what Claude Code uses), `x-gemini-key`, or `body.apiKeys[]`.
 A raw provider key works directly; an `er1…` master key is decrypted and its
 whole pool becomes available for rotation.
+
+### Free models, and using this from OpenCode
+
+`GET /api/v1/models` returns **only free models by default**, because that is what
+this gateway is for: a coding agent pointed at it should see models that cost
+nothing. Pass `?all=true` (or `?free=false`) for the full catalogue.
+
+The list is not a static table. When you present an `er1…` master key the gateway
+reads which upstreams your pool holds keys for, asks each of those upstreams for
+its real `/models`, and classifies the result:
+
+| Tier | Meaning | Example |
+|---|---|---|
+| `live` | The provider publishes per-model pricing, so we trust it | OpenRouter: free only when `pricing.prompt` and `pricing.completion` are both `0` |
+| `keyless` | Free with no key at all | Pollinations |
+| `all` | The provider's free tier covers everything a key unlocks | Google AI Studio, Groq, GitHub Models, Cerebras, SambaNova, HuggingFace |
+| `ids` | Only specific models are free there | Zhipu `glm-4-flash`, SiliconFlow `Qwen2.5-7B-Instruct` |
+
+Anything with no policy is reported as **paid**. That bias is deliberate: calling
+a model free when it is not costs you real money, while hiding a genuinely free
+model only costs you the chance to pick it. The `all`/`ids` tiers encode provider
+documentation as of 2026-09 and will drift as tiers change — which is why the
+`live` tier overrides them wherever a provider supplies pricing.
+
+Each model carries `free`, `source` (`live` / `policy`) and `available`, and the
+response carries `X-Edge-Sync-Ok`, `X-Edge-Sync-Failed` and `X-Edge-Cache` headers
+so you can see whether the list came from your upstreams or from the bundled
+fallback. Results are cached in memory for 10 minutes per master key, because
+OpenCode fetches on startup and re-syncs daily.
+
+**OpenCode** (`opencode.json` in your project, or `~/.config/opencode/opencode.json`):
+
+```jsonc
+{
+  "$schema": "https://opencode.ai/config.json",
+  "model": "edge-router/gemini-flash-latest",
+  "provider": {
+    "edge-router": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "Edge Router (free)",
+      "options": {
+        "baseURL": "https://YOUR-APP.vercel.app/api/v1",
+        "apiKey": "er1.YOUR-MASTER-KEY"
+      },
+      "models": {
+        "gemini-flash-latest": { "name": "gemini-flash-latest" }
+        // ...every free model your keys unlock
+      }
+    }
+  }
+}
+```
+
+The **Connect** tab in the app generates this block for you with your real master
+key and your current free-model list already filled in — copy it rather than
+typing it. Two details that matter:
+
+- `baseURL` must end at `/api/v1`. OpenCode appends `/chat/completions` and
+  `/models` itself; adding either to `baseURL` breaks it.
+- Recent OpenCode (Sept 2026+) fetches `{baseURL}/models` for
+  `@ai-sdk/openai-compatible` providers and lets the server's list replace what
+  you declared, so you may omit `models` entirely. The generated config lists
+  them anyway, which works on both old and new versions. Because the endpoint is
+  free-only either way, both paths show only free models.
+
+Inference then goes to `/api/v1/chat/completions` with the same master key, and
+the gateway rotates across your pool when a key is rate-limited.
 
 ### Response metadata
 

@@ -605,9 +605,243 @@ const UNIVERSAL_MODELS_LOCAL: { id: string; upstream: string }[] = [
   { id: "openai", upstream: "prov-pollinations" },
 ];
 
-app.get("/api/v1/models", (req, res) => {
-  const now = Math.floor(Date.now() / 1000);
-  // Master key di hai to validate karo (Nexus key-check): galat/expire -> 401.
+// ---------------------------------------------------------------------------
+// FREE-MODEL ENGINE (dev mirror of api/v1/models.ts)
+// ---------------------------------------------------------------------------
+// api/ functions are deliberately self-contained and server.ts is the dev server,
+// so this is a hand-mirrored copy. Change one, change the other - the two must
+// agree or `npm run dev` proves nothing about the deployed function.
+type FreePolicy = { kind: "keyless" | "all" | "live" | "ids"; patterns?: RegExp[] };
+
+const FREE_POLICY: Record<string, FreePolicy> = {
+  "prov-pollinations": { kind: "keyless" },
+  "prov-openrouter": { kind: "live" },
+  "prov-gemini": { kind: "all" },
+  "prov-groq": { kind: "all" },
+  "prov-githubmodels": { kind: "all" },
+  "prov-cerebras": { kind: "all" },
+  "prov-sambanova": { kind: "all" },
+  "prov-huggingface": { kind: "all" },
+  "prov-zhipu": { kind: "ids", patterns: [/^glm-4-flash/i, /^glm-4-air/i, /^glm-4\.5-air/i] },
+  "prov-siliconflow": { kind: "ids", patterns: [/^Qwen\/Qwen2\.5-7B-Instruct$/i] },
+};
+
+const KEYLESS_UPSTREAMS = Object.keys(FREE_POLICY).filter((u) => FREE_POLICY[u].kind === "keyless");
+
+function isFreeModel(upstream: string, id: string, liveFree?: boolean): boolean {
+  if (/:free$/i.test(id)) return true;
+  if (liveFree === true) return true;
+  if (liveFree === false) return false;
+  const pol = FREE_POLICY[upstream];
+  if (!pol) return false;
+  if (pol.kind === "keyless" || pol.kind === "all") return true;
+  if (pol.kind === "ids") return (pol.patterns || []).some((re) => re.test(id));
+  return false;
+}
+
+// Providers whose /models is not OpenAI-shaped, so deriving it from baseUrl
+// would just produce a 404. Gemini is special-cased below instead.
+const NO_GENERIC_MODELS = new Set(["prov-anthropic", "prov-perplexity", "prov-gemini"]);
+
+const LIVE_MODELS_URLS: Record<string, string> = {
+  "prov-novita": "https://api.novita.ai/v3/openai/models",
+  "prov-cohere": "https://api.cohere.ai/compatibility/v1/models",
+  "prov-zhipu": "https://open.bigmodel.cn/api/paas/v4/models",
+  "prov-qwen": "https://dashscope.aliyuncs.com/compatible-mode/v1/models",
+  "prov-githubmodels": "https://models.github.ai/inference/models",
+  "prov-huggingface": "https://router.huggingface.co/v1/models",
+  "prov-deepinfra": "https://api.deepinfra.com/v1/openai/models",
+  "prov-pollinations": "https://text.pollinations.ai/openai/models",
+  "prov-nebius": "https://api.studio.nebius.com/v1/models",
+  "prov-glhf": "https://glhf.chat/api/openai/v1/models",
+  "prov-chutes": "https://llm.chutes.ai/v1/models",
+  "prov-hyperbolic": "https://api.hyperbolic.xyz/v1/models",
+  "prov-siliconflow": "https://api.siliconflow.cn/v1/models",
+};
+
+const LIVE_TIMEOUT_MS = 6000;
+const LIVE_MAX_PER_UPSTREAM = 150;
+const NON_CHAT_RE = /embedding|rerank|whisper|\btts\b|transcribe|guard|moderation|dall-e|image|video|audio|veo|lyria|bidi|live-|deep-research/i;
+
+type LiveRow = { id: string; name: string; upstream: string; free: boolean; source: "live" | "policy" };
+type SyncOutcome = { ok: string[]; failed: string[] };
+
+function modelsUrlFor(upstream: string): string {
+  if (LIVE_MODELS_URLS[upstream]) return LIVE_MODELS_URLS[upstream];
+  const u = (UPSTREAMS as Record<string, { baseUrl?: string }>)[upstream];
+  if (!u || !u.baseUrl || NO_GENERIC_MODELS.has(upstream)) return "";
+  return u.baseUrl.replace(/\/+$/, "") + "/models";
+}
+
+async function liveFetchLocal(url: string, headers: Record<string, string>): Promise<any> {
+  const ctl = new AbortController();
+  const t = setTimeout(() => ctl.abort(), LIVE_TIMEOUT_MS);
+  try {
+    const r = await fetch(url, { headers, signal: ctl.signal });
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    return await r.json();
+  } finally {
+    clearTimeout(t);
+  }
+}
+
+async function syncUpstreamLocal(upstream: string, key: string): Promise<LiveRow[] | null> {
+  try {
+    if (upstream === "prov-gemini") {
+      if (!key) return null;
+      const j: any = await liveFetchLocal(
+        `https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(key)}&pageSize=100`,
+        {},
+      );
+      const out: LiveRow[] = [];
+      for (const m of Array.isArray(j?.models) ? j.models : []) {
+        const id = typeof m?.name === "string" ? m.name.replace(/^models\//, "") : "";
+        const methods: string[] = Array.isArray(m?.supportedGenerationMethods) ? m.supportedGenerationMethods : [];
+        if (!id || !methods.includes("generateContent") || NON_CHAT_RE.test(id)) continue;
+        out.push({ id, name: id, upstream, free: isFreeModel(upstream, id), source: "live" });
+        if (out.length >= LIVE_MAX_PER_UPSTREAM) break;
+      }
+      return out;
+    }
+
+    if (upstream === "prov-openrouter") {
+      const j: any = await liveFetchLocal("https://openrouter.ai/api/v1/models", {});
+      const out: LiveRow[] = [];
+      for (const m of Array.isArray(j?.data) ? j.data : []) {
+        const id = typeof m?.id === "string" ? m.id : "";
+        if (!id || NON_CHAT_RE.test(id)) continue;
+        const mods: string[] = Array.isArray(m?.architecture?.output_modalities) ? m.architecture.output_modalities : [];
+        if (mods.length > 0 && !mods.includes("text")) continue;
+        const pr = m?.pricing;
+        let liveFree: boolean | undefined;
+        if (pr && typeof pr === "object") {
+          const pp = Number((pr as any).prompt);
+          const pc = Number((pr as any).completion);
+          liveFree = Number.isFinite(pp) && Number.isFinite(pc) && pp === 0 && pc === 0;
+        }
+        if (!isFreeModel(upstream, id, liveFree)) continue;
+        out.push({ id, name: typeof m?.name === "string" && m.name ? m.name : id, upstream, free: true, source: "live" });
+        if (out.length >= LIVE_MAX_PER_UPSTREAM) break;
+      }
+      return out;
+    }
+
+    const url = modelsUrlFor(upstream);
+    if (!url) return null;
+    const needsKey = !KEYLESS_UPSTREAMS.includes(upstream);
+    if (needsKey && !key) return null;
+    const j: any = await liveFetchLocal(url, key ? { Authorization: `Bearer ${key}` } : {});
+    const arr = Array.isArray(j?.data) ? j.data : Array.isArray(j?.models) ? j.models : [];
+    const out: LiveRow[] = [];
+    for (const m of arr) {
+      const id = typeof m?.id === "string" ? m.id : typeof m?.name === "string" ? m.name : typeof m === "string" ? m : "";
+      if (!id || NON_CHAT_RE.test(id)) continue;
+      out.push({ id, name: id, upstream, free: isFreeModel(upstream, id), source: "live" });
+      if (out.length >= LIVE_MAX_PER_UPSTREAM) break;
+    }
+    return out;
+  } catch {
+    return null;
+  }
+}
+
+const LIVE_CACHE_TTL_MS = 10 * 60 * 1000;
+const LIVE_CACHE_MAX = 200;
+const liveModelCache = new Map<string, { at: number; rows: LiveRow[]; outcome: SyncOutcome }>();
+
+function firstKeyPerPoolLocal(payload: any): Record<string, string> {
+  const out: Record<string, string> = {};
+  const pools = payload?.keys && typeof payload.keys === "object" ? payload.keys : {};
+  for (const pid of Object.keys(pools)) {
+    const arr = pools[pid];
+    if (!Array.isArray(arr)) continue;
+    const hit = arr.find((e: any) => typeof e?.k === "string" && e.k.trim().length >= 10)
+      || arr.find((e: any) => typeof e === "string" && e.trim().length >= 10);
+    const k = typeof hit === "string" ? hit : hit?.k;
+    if (typeof k === "string" && k.trim()) out[pid] = k.trim();
+  }
+  return out;
+}
+
+async function liveCatalogLocal(masterTok: string, payload: any): Promise<{ rows: LiveRow[]; outcome: SyncOutcome; cached: boolean }> {
+  const ck = crypto.createHash("sha256").update(masterTok).digest("hex").slice(0, 32);
+  const now = Date.now();
+  const hit = liveModelCache.get(ck);
+  if (hit && now - hit.at < LIVE_CACHE_TTL_MS) return { rows: hit.rows, outcome: hit.outcome, cached: true };
+  if (liveModelCache.size > LIVE_CACHE_MAX) {
+    for (const [k, v] of liveModelCache) if (now - v.at >= LIVE_CACHE_TTL_MS) liveModelCache.delete(k);
+  }
+  const pools = firstKeyPerPoolLocal(payload);
+  const names = [...new Set([...Object.keys(pools), ...KEYLESS_UPSTREAMS, "prov-openrouter"])];
+  const results = await Promise.allSettled(names.map((u) => syncUpstreamLocal(u, pools[u] || "")));
+  const rows: LiveRow[] = [];
+  const ok: string[] = [];
+  const failed: string[] = [];
+  results.forEach((r, idx) => {
+    const got = r.status === "fulfilled" ? r.value : null;
+    if (got && got.length > 0) { ok.push(names[idx]); rows.push(...got); } else { failed.push(names[idx]); }
+  });
+  const entry = { at: now, rows, outcome: { ok, failed } };
+  liveModelCache.set(ck, entry);
+  return { rows, outcome: entry.outcome, cached: false };
+}
+
+app.get("/api/v1/models", async (req, res) => {
+  const created = Math.floor(Date.now() / 1000);
+  const truthy = (v: any) => ["1", "true", "yes", "on"].includes(String(Array.isArray(v) ? v[0] : v ?? "").trim().toLowerCase());
+  const falsy = (v: any) => ["0", "false", "no", "off"].includes(String(Array.isArray(v) ? v[0] : v ?? "").trim().toLowerCase());
+  // Free-only by DEFAULT: coding agents pointed here should see models that cost
+  // nothing. ?all=true (or ?free=false) opts back out to the full catalogue.
+  const freeOnly = !(truthy((req.query as any)?.all) || falsy((req.query as any)?.free));
+
+  const diag = (mode: string, cached: boolean, outcome?: SyncOutcome) => {
+    try {
+      res.setHeader("X-Edge-Free-Only", freeOnly ? "true" : "false");
+      res.setHeader("X-Edge-Source", mode);
+      if (outcome) {
+        res.setHeader("X-Edge-Sync-Ok", outcome.ok.join(",") || "none");
+        res.setHeader("X-Edge-Sync-Failed", outcome.failed.join(",") || "none");
+        res.setHeader("X-Edge-Cache", cached ? "hit" : "miss");
+      }
+    } catch { /* diagnostics are best-effort */ }
+  };
+
+  const seedRows = (availableSet: Set<string> | null) => UNIVERSAL_MODELS_LOCAL.map((m) => ({
+    id: m.id,
+    object: "model" as const,
+    created,
+    owned_by: "edge-router",
+    name: m.id,
+    upstream: m.upstream,
+    gateway: "Edge Router",
+    free: isFreeModel(m.upstream, m.id),
+    source: "policy" as const,
+    ...(availableSet ? { available: availableSet.has(m.upstream) } : {}),
+  }));
+
+  const toRows = (live: LiveRow[], availableSet: Set<string> | null) => live.map((r) => ({
+    id: r.id,
+    object: "model" as const,
+    created,
+    owned_by: "edge-router",
+    name: r.name || r.id,
+    upstream: r.upstream,
+    gateway: "Edge Router",
+    free: r.free,
+    source: r.source,
+    ...(availableSet ? { available: availableSet.has(r.upstream) || KEYLESS_UPSTREAMS.includes(r.upstream) } : {}),
+  }));
+
+  const dedupe = (rows: any[]) => {
+    const seen = new Set<string>();
+    return rows.filter((r) => {
+      const k = `${r.upstream}:${r.id}`;
+      if (seen.has(k)) return false;
+      seen.add(k);
+      return true;
+    });
+  };
+
   const mcands = [
     req.headers?.["x-master-key"],
     (() => {
@@ -618,26 +852,29 @@ app.get("/api/v1/models", (req, res) => {
     Array.isArray((req.query as any)?.key) ? (req.query as any).key[0] : (req.query as any)?.key,
   ];
   const masterTok = mcands.find((c) => typeof c === "string" && c.trim().startsWith("er1."))?.trim() || "";
+
+  // ---- With a master key we know the caller's pools, so ask those upstreams.
   if (masterTok) {
     try {
       const payload = masterDecryptLocal(masterTok);
-      const set = new Set<string>();
-      Object.keys(payload.keys || {}).forEach((pid) => {
-        const arr = payload.keys[pid];
-        if (Array.isArray(arr) && arr.length > 0) set.add(pid);
+      const pools = payload?.keys && typeof payload.keys === "object" ? payload.keys : {};
+      const availableSet = new Set<string>();
+      Object.keys(pools).forEach((pid) => {
+        const arr = pools[pid];
+        if (Array.isArray(arr) && arr.length > 0) availableSet.add(pid);
       });
-      return res.json({
-        object: "list",
-        data: UNIVERSAL_MODELS_LOCAL.map((m) => ({
-          id: m.id,
-          object: "model",
-          created: now,
-          owned_by: "edge-router",
-          upstream: m.upstream,
-          gateway: "Edge Router",
-          available: set.has(m.upstream) || set.has("Edge Router") || set.has("prov-universal"),
-        })),
-      });
+
+      const { rows: live, outcome, cached } = await liveCatalogLocal(masterTok, payload);
+      const liveUps = new Set(live.map((r) => r.upstream));
+      // Live wins; fall back to the seed for any upstream that holds keys but did
+      // not answer, so a provider outage never silently empties the list.
+      const fallback = seedRows(availableSet).filter(
+        (r) => !liveUps.has(r.upstream) && availableSet.has(r.upstream),
+      );
+      const rows = dedupe([...toRows(live, availableSet), ...fallback]);
+      const out = freeOnly ? rows.filter((r) => r.free && r.available !== false) : rows;
+      diag("master-key", cached, outcome);
+      return res.json({ object: "list", data: out });
     } catch (e: any) {
       if (e?.code === "MASTER_KEY_SECRET_MISSING") {
         return res.status(503).json({
@@ -652,6 +889,22 @@ app.get("/api/v1/models", (req, res) => {
       });
     }
   }
+
+  // ---- Anonymous: report the free catalogue from keyless providers plus seed.
+  let live: LiveRow[] = [];
+  let outcome: SyncOutcome | undefined;
+  try {
+    const names = [...new Set([...KEYLESS_UPSTREAMS, "prov-openrouter"])];
+    const settled = await Promise.allSettled(names.map((u) => syncUpstreamLocal(u, "")));
+    const ok: string[] = [];
+    const failed: string[] = [];
+    settled.forEach((r, idx) => {
+      const got = r.status === "fulfilled" ? r.value : null;
+      if (got && got.length > 0) { ok.push(names[idx]); live.push(...got); } else { failed.push(names[idx]); }
+    });
+    outcome = { ok, failed };
+  } catch { /* anonymous live sync is best-effort */ }
+
   const found: string[] = [];
   const pushKey = (v: any) => {
     if (typeof v !== "string") return;
@@ -662,24 +915,21 @@ app.get("/api/v1/models", (req, res) => {
   pushKey(req.headers?.["x-api-key"]);
   pushKey(req.headers?.["x-gemini-key"]);
   const h = typeof req.headers?.authorization === "string" ? req.headers.authorization : "";
-  const m = h.match(/^Bearer\s*(.*)$/i);
-  pushKey(m ? m[1] : h);
+  const mm = h.match(/^Bearer\s*(.*)$/i);
+  pushKey(mm ? mm[1] : h);
   const q = (req.query as any)?.key;
   if (Array.isArray(q)) q.forEach(pushKey);
   else pushKey(q);
   const ups = found.length > 0 ? new Set(found.map(detectKeyUpstream)) : null;
-  res.json({
-    object: "list",
-    data: UNIVERSAL_MODELS_LOCAL.map((m) => ({
-      id: m.id,
-      object: "model",
-      created: now,
-      owned_by: "edge-router",
-      upstream: m.upstream,
-      gateway: "Edge Router",
-      ...(ups ? { available: ups.has(m.upstream) } : {}),
-    })),
-  });
+
+  const liveUps = new Set(live.map((r) => r.upstream));
+  const rows = dedupe([
+    ...toRows(live, ups),
+    ...seedRows(ups).filter((r) => !liveUps.has(r.upstream)),
+  ]);
+  const out = freeOnly ? rows.filter((r) => r.free && (ups ? r.available !== false : true)) : rows;
+  diag("anonymous", false, outcome);
+  res.json({ object: "list", data: out });
 });
 
 // Helper to build comprehensive system prompt for the Autonomous Router Operator
