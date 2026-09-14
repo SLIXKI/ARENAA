@@ -219,3 +219,327 @@
 ::-webkit-scrollbar-thumb:hover {
   background: #404040;
 }
+
+/* ==========================================================================
+   DESIGN SYSTEM  v2
+   A premium dark "control room" theme: deep charcoal-navy base, emerald primary
+   with cyan/violet support, layered glass surfaces, and real interaction states.
+   Every token is a CSS variable so the whole app can be re-themed in one place.
+   ========================================================================== */
+
+@layer base {
+  :root {
+    /* --- surfaces --- */
+    --ui-bg:            #08090c;
+    --ui-bg-soft:       #0c0e13;
+    --ui-surface:       #11141b;
+    --ui-surface-2:     #161a23;
+    --ui-surface-3:     #1c212c;
+    --ui-elevated:      rgba(22, 26, 35, 0.72);
+
+    /* --- lines --- */
+    --ui-border:        rgba(255, 255, 255, 0.08);
+    --ui-border-strong: rgba(255, 255, 255, 0.14);
+    --ui-border-focus:  rgba(52, 211, 153, 0.55);
+
+    /* --- text --- */
+    --ui-text:          #f2f5f7;
+    --ui-text-muted:    #9aa4b2;
+    --ui-text-dim:      #6b7684;
+
+    /* --- brand --- */
+    --ui-primary:       #34d399;
+    --ui-primary-soft:  rgba(52, 211, 153, 0.14);
+    --ui-primary-text:  #04150e;
+    --ui-accent:        #22d3ee;
+    --ui-accent-soft:   rgba(34, 211, 238, 0.14);
+    --ui-violet:        #a78bfa;
+    --ui-violet-soft:   rgba(167, 139, 250, 0.14);
+
+    /* --- semantics --- */
+    --ui-success:       #34d399;
+    --ui-warning:       #fbbf24;
+    --ui-danger:        #fb7185;
+    --ui-info:          #60a5fa;
+
+    /* --- shape --- */
+    --ui-r-sm: 8px;
+    --ui-r-md: 12px;
+    --ui-r-lg: 16px;
+    --ui-r-xl: 22px;
+    --ui-r-pill: 999px;
+
+    /* --- elevation --- */
+    --ui-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+    --ui-shadow-md: 0 8px 24px -12px rgba(0, 0, 0, 0.75);
+    --ui-shadow-lg: 0 24px 60px -24px rgba(0, 0, 0, 0.85);
+    --ui-glow:      0 0 0 1px rgba(52, 211, 153, 0.25), 0 10px 40px -14px rgba(52, 211, 153, 0.45);
+
+    /* --- motion --- */
+    --ui-ease: cubic-bezier(0.16, 1, 0.3, 1);
+    --ui-fast: 140ms;
+    --ui-med: 240ms;
+
+    /* --- layout --- */
+    --ui-nav-h: 64px;
+    --ui-tabbar-h: 62px;
+    --ui-safe-b: env(safe-area-inset-bottom, 0px);
+    --ui-safe-t: env(safe-area-inset-top, 0px);
+  }
+
+  body {
+    background-color: var(--ui-bg);
+    color: var(--ui-text);
+    /* Layered ambient wash — subtle, never competing with content. */
+    background-image:
+      radial-gradient(900px 520px at 12% -8%, rgba(52, 211, 153, 0.09), transparent 62%),
+      radial-gradient(760px 460px at 92% 4%, rgba(34, 211, 238, 0.075), transparent 60%),
+      radial-gradient(700px 520px at 50% 108%, rgba(167, 139, 250, 0.06), transparent 62%);
+    background-attachment: fixed;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+
+  /* Visible, consistent keyboard focus — the old theme had none. */
+  :where(a, button, input, select, textarea, [tabindex]):focus-visible {
+    outline: 2px solid var(--ui-border-focus);
+    outline-offset: 2px;
+    border-radius: var(--ui-r-sm);
+  }
+
+  ::selection { background: rgba(52, 211, 153, 0.3); color: #fff; }
+
+  /* Respect users who ask for less motion. */
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.001ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.001ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+
+  /* Comfortable tap targets on touch devices without inflating desktop chrome. */
+  @media (pointer: coarse) {
+    button, select, [role="tab"], .ui-tab { min-height: 44px; }
+    input, textarea { font-size: 16px; } /* stops iOS zoom-on-focus */
+  }
+}
+
+/* ---------- surfaces ---------- */
+.ui-card {
+  background: linear-gradient(168deg, var(--ui-surface-2), var(--ui-surface));
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-r-lg);
+  box-shadow: var(--ui-shadow-md), inset 0 1px 0 rgba(255, 255, 255, 0.045);
+}
+.ui-card-hover { transition: transform var(--ui-med) var(--ui-ease), border-color var(--ui-med), box-shadow var(--ui-med); }
+.ui-card-hover:hover {
+  transform: translateY(-2px);
+  border-color: var(--ui-border-strong);
+  box-shadow: var(--ui-shadow-lg), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+.ui-glass {
+  background: var(--ui-elevated);
+  backdrop-filter: blur(20px) saturate(150%);
+  -webkit-backdrop-filter: blur(20px) saturate(150%);
+  border: 1px solid var(--ui-border);
+}
+.ui-inset {
+  background: rgba(4, 6, 9, 0.6);
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-r-md);
+  box-shadow: inset 0 2px 14px rgba(0, 0, 0, 0.55);
+}
+.ui-hairline { border-color: var(--ui-border) !important; }
+
+/* ---------- buttons ---------- */
+.ui-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  padding: 10px 16px;
+  font-size: 13px; font-weight: 600; letter-spacing: 0.01em;
+  border-radius: var(--ui-r-md);
+  border: 1px solid var(--ui-border-strong);
+  background: var(--ui-surface-2);
+  color: var(--ui-text);
+  cursor: pointer; white-space: nowrap;
+  transition: transform var(--ui-fast) var(--ui-ease), background var(--ui-fast),
+              border-color var(--ui-fast), box-shadow var(--ui-fast), filter var(--ui-fast);
+}
+.ui-btn:hover:not(:disabled) { background: var(--ui-surface-3); border-color: rgba(255,255,255,0.22); }
+.ui-btn:active:not(:disabled) { transform: translateY(1px) scale(0.99); }
+.ui-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+.ui-btn-primary {
+  background: linear-gradient(135deg, #34d399, #10b981 55%, #22d3ee);
+  border-color: transparent;
+  color: var(--ui-primary-text);
+  font-weight: 700;
+  box-shadow: 0 8px 26px -10px rgba(52, 211, 153, 0.75);
+}
+.ui-btn-primary:hover:not(:disabled) { filter: brightness(1.07); background: linear-gradient(135deg, #34d399, #10b981 55%, #22d3ee); box-shadow: 0 12px 34px -10px rgba(52,211,153,0.9); }
+
+.ui-btn-ghost { background: transparent; border-color: var(--ui-border); color: var(--ui-text-muted); }
+.ui-btn-ghost:hover:not(:disabled) { background: rgba(255,255,255,0.05); color: var(--ui-text); border-color: var(--ui-border-strong); }
+
+.ui-btn-danger { background: rgba(251, 113, 133, 0.12); border-color: rgba(251,113,133,0.35); color: #fecdd3; }
+.ui-btn-danger:hover:not(:disabled) { background: rgba(251,113,133,0.2); border-color: rgba(251,113,133,0.55); }
+
+.ui-btn-sm { padding: 6px 11px; font-size: 12px; border-radius: var(--ui-r-sm); }
+.ui-btn-lg { padding: 14px 22px; font-size: 15px; border-radius: var(--ui-r-md); }
+.ui-btn-icon { padding: 9px; width: 38px; height: 38px; }
+.ui-btn-block { width: 100%; }
+
+/* ---------- form controls ---------- */
+.ui-input, .ui-select, .ui-textarea {
+  width: 100%;
+  padding: 11px 13px;
+  font-size: 14px;
+  color: var(--ui-text);
+  background: rgba(4, 6, 9, 0.55);
+  border: 1px solid var(--ui-border-strong);
+  border-radius: var(--ui-r-md);
+  transition: border-color var(--ui-fast), box-shadow var(--ui-fast), background var(--ui-fast);
+  appearance: none;
+}
+.ui-input::placeholder, .ui-textarea::placeholder { color: var(--ui-text-dim); }
+.ui-input:hover, .ui-select:hover, .ui-textarea:hover { border-color: rgba(255,255,255,0.22); }
+.ui-input:focus, .ui-select:focus, .ui-textarea:focus {
+  outline: none;
+  border-color: var(--ui-border-focus);
+  box-shadow: 0 0 0 3px rgba(52, 211, 153, 0.16);
+  background: rgba(4, 6, 9, 0.8);
+}
+.ui-select {
+  background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%239aa4b2' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  padding-right: 36px;
+}
+.ui-label {
+  display: block; margin-bottom: 6px;
+  font-size: 11.5px; font-weight: 700; letter-spacing: 0.07em; text-transform: uppercase;
+  color: var(--ui-text-muted);
+}
+.ui-hint { font-size: 12px; color: var(--ui-text-dim); line-height: 1.55; }
+
+/* ---------- badges, chips, pills ---------- */
+.ui-badge {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 3px 9px; font-size: 11px; font-weight: 700;
+  letter-spacing: 0.04em; text-transform: uppercase;
+  border-radius: var(--ui-r-pill);
+  border: 1px solid var(--ui-border-strong);
+  background: rgba(255,255,255,0.05); color: var(--ui-text-muted);
+  white-space: nowrap;
+}
+.ui-badge-success { background: var(--ui-primary-soft); border-color: rgba(52,211,153,0.35); color: #6ee7b7; }
+.ui-badge-warning { background: rgba(251,191,36,0.13); border-color: rgba(251,191,36,0.34); color: #fcd34d; }
+.ui-badge-danger  { background: rgba(251,113,133,0.13); border-color: rgba(251,113,133,0.34); color: #fda4af; }
+.ui-badge-info    { background: var(--ui-accent-soft); border-color: rgba(34,211,238,0.34); color: #67e8f9; }
+.ui-badge-violet  { background: var(--ui-violet-soft); border-color: rgba(167,139,250,0.34); color: #c4b5fd; }
+
+.ui-chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 5px 11px; font-size: 12px; font-weight: 600;
+  border-radius: var(--ui-r-pill);
+  border: 1px solid var(--ui-border);
+  background: var(--ui-surface-2); color: var(--ui-text-muted);
+  cursor: pointer;
+  transition: all var(--ui-fast) var(--ui-ease);
+}
+.ui-chip:hover { color: var(--ui-text); border-color: var(--ui-border-strong); }
+.ui-chip-active {
+  background: var(--ui-primary-soft); border-color: rgba(52,211,153,0.5);
+  color: #6ee7b7; box-shadow: 0 0 18px -8px rgba(52,211,153,0.7);
+}
+
+/* ---------- live status dot ---------- */
+.ui-dot { position: relative; width: 8px; height: 8px; border-radius: 50%; flex: none; }
+.ui-dot-live::after {
+  content: ''; position: absolute; inset: -4px; border-radius: 50%;
+  border: 1.5px solid currentColor; opacity: 0.55;
+  animation: ui-ping 2s cubic-bezier(0, 0, 0.2, 1) infinite;
+}
+@keyframes ui-ping { 0% { transform: scale(0.7); opacity: 0.6; } 80%, 100% { transform: scale(1.7); opacity: 0; } }
+
+/* ---------- progress ---------- */
+.ui-track { height: 6px; border-radius: var(--ui-r-pill); background: rgba(255,255,255,0.07); overflow: hidden; }
+.ui-bar { height: 100%; border-radius: var(--ui-r-pill); transition: width var(--ui-med) var(--ui-ease); }
+.ui-bar-grad { background: linear-gradient(90deg, #34d399, #22d3ee); }
+
+/* ---------- section headings ---------- */
+.ui-h1 { font-family: var(--font-display); font-size: clamp(22px, 4vw, 32px); font-weight: 800; letter-spacing: -0.02em; line-height: 1.15; }
+.ui-h2 { font-family: var(--font-display); font-size: clamp(17px, 2.6vw, 21px); font-weight: 700; letter-spacing: -0.015em; }
+.ui-h3 { font-size: 14px; font-weight: 700; letter-spacing: 0.01em; }
+.ui-eyebrow {
+  font-size: 10.5px; font-weight: 800; letter-spacing: 0.16em; text-transform: uppercase;
+  color: var(--ui-text-dim);
+}
+.ui-grad-text {
+  background: linear-gradient(100deg, #a7f3d0, #34d399 28%, #22d3ee 58%, #a78bfa 88%);
+  background-size: 200% auto;
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+  animation: cx-gradient-pan 8s linear infinite;
+}
+
+/* ---------- dividers / scroll ---------- */
+.ui-divider { height: 1px; background: var(--ui-border); border: 0; }
+.ui-scroll-x { overflow-x: auto; scrollbar-width: thin; -webkit-overflow-scrolling: touch; }
+.ui-scroll-x::-webkit-scrollbar { height: 5px; }
+.ui-no-scrollbar { scrollbar-width: none; }
+.ui-no-scrollbar::-webkit-scrollbar { display: none; }
+
+/* ---------- entrance ---------- */
+.ui-rise { animation: ui-rise 0.42s var(--ui-ease) both; }
+@keyframes ui-rise { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+.ui-rise-1 { animation-delay: 40ms; } .ui-rise-2 { animation-delay: 80ms; }
+.ui-rise-3 { animation-delay: 120ms; } .ui-rise-4 { animation-delay: 160ms; }
+
+/* ---------- mobile shell ---------- */
+/* Bottom tab bar: thumb-reachable navigation on phones, hidden from sm: up. */
+.ui-tabbar {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 60;
+  display: grid; grid-auto-flow: column; grid-auto-columns: 1fr;
+  padding-bottom: var(--ui-safe-b);
+  background: rgba(9, 11, 15, 0.92);
+  backdrop-filter: blur(20px) saturate(160%);
+  -webkit-backdrop-filter: blur(20px) saturate(160%);
+  border-top: 1px solid var(--ui-border);
+  box-shadow: 0 -12px 34px -18px rgba(0, 0, 0, 0.9);
+}
+.ui-tabbar-item {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
+  min-height: var(--ui-tabbar-h);
+  padding: 7px 2px;
+  font-size: 9.5px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase;
+  color: var(--ui-text-dim);
+  background: transparent; border: 0; cursor: pointer;
+  transition: color var(--ui-fast), background var(--ui-fast);
+  position: relative;
+}
+.ui-tabbar-item:active { background: rgba(255,255,255,0.05); }
+.ui-tabbar-item[data-active="true"] { color: var(--ui-primary); }
+.ui-tabbar-item[data-active="true"]::before {
+  content: ''; position: absolute; top: 0; left: 22%; right: 22%; height: 2px;
+  border-radius: 0 0 3px 3px;
+  background: linear-gradient(90deg, #34d399, #22d3ee);
+  box-shadow: 0 0 12px rgba(52,211,153,0.8);
+}
+/* Keeps content clear of the fixed bar on small screens only. */
+@media (max-width: 639px) {
+  .ui-has-tabbar { padding-bottom: calc(var(--ui-tabbar-h) + var(--ui-safe-b) + 12px) !important; }
+}
+@media (min-width: 640px) { .ui-tabbar { display: none; } }
+
+/* ---------- modal shell: full-bleed sheet on phones, centred dialog above --- */
+.ui-modal-scroll { max-height: 100dvh; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+@media (max-width: 639px) {
+  .ui-modal-card {
+    width: 100% !important; max-width: 100% !important;
+    border-radius: var(--ui-r-xl) var(--ui-r-xl) 0 0 !important;
+    margin-top: auto !important;
+    max-height: 94dvh;
+  }
+}

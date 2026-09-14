@@ -18,6 +18,17 @@ import {
 } from 'lucide-react';
 import { Provider } from '../types/router';
 
+type TabId = 'dashboard' | 'tester' | 'quota' | 'telemetry' | 'export' | 'monitor';
+
+const NAV_TABS: { id: TabId; label: string; Icon: typeof Layers }[] = [
+  { id: 'dashboard', label: 'NODES', Icon: Layers },
+  { id: 'tester', label: 'TESTER', Icon: Terminal },
+  { id: 'quota', label: 'QUOTA', Icon: Flame },
+  { id: 'telemetry', label: 'METRICS', Icon: Activity },
+  { id: 'export', label: 'CONNECT', Icon: Plug },
+  { id: 'monitor', label: 'MONITOR', Icon: Radar },
+];
+
 interface NavbarProps {
   providers: Provider[];
   activeProviderId: string;
@@ -82,10 +93,11 @@ export const Navbar: React.FC<NavbarProps> = ({
   return (
     <header
       id="main-navbar"
-      className={`sticky top-0 z-50 w-full transition-all duration-250 ${
+      style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}
+      className={`sticky top-0 z-50 w-full transition-all duration-300 ${
         isScrolled
-          ? 'bg-neutral-950/85 backdrop-blur-xl border-b border-neutral-800 shadow-[0_4px_24px_rgba(0,0,0,0.5)]'
-          : 'bg-neutral-950/60 backdrop-blur-md border-b border-neutral-800/60'
+          ? 'ui-glass border-b border-white/10 shadow-[0_10px_40px_-16px_rgba(0,0,0,0.9)]'
+          : 'border-b border-white/8 bg-[#08090c]/70 backdrop-blur-md'
       }`}
     >
       <div className="max-w-7xl mx-auto px-2.5 sm:px-6 lg:px-8">
@@ -93,8 +105,8 @@ export const Navbar: React.FC<NavbarProps> = ({
           {/* Logo & Identity */}
           <div className="flex items-center gap-1.5 sm:gap-3 min-w-0 flex-shrink">
             <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
-              <span className="font-mono text-[11px] sm:text-xs font-bold tracking-widest bg-neutral-100 text-neutral-950 px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-none border border-neutral-200 shadow-sm flex-shrink-0">
-                [ER]
+              <span className="flex h-7 w-7 sm:h-8 sm:w-8 flex-shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-400 to-cyan-500 font-mono text-[10px] sm:text-[11px] font-black tracking-tight text-[#04150e] shadow-[0_6px_20px_-6px_rgba(52,211,153,0.85)]">
+                ER
               </span>
               <div className="flex flex-col min-w-0">
                 <span className="font-bold tracking-tight text-xs sm:text-sm text-neutral-100 uppercase font-mono whitespace-nowrap truncate">
@@ -230,85 +242,36 @@ export const Navbar: React.FC<NavbarProps> = ({
             )}
           </div>
 
-          {/* Desktop Tab Navigation */}
-          <nav className="hidden lg:flex items-center gap-1 border border-neutral-800 bg-neutral-900/40 p-1 flex-shrink-0">
-            <button
-              id="nav-tab-dashboard"
-              onClick={() => onSelectTab('dashboard')}
-              className={`flex items-center gap-2 px-3 py-1.5 text-xs font-mono tracking-wide rounded-none transition-all duration-200 ease-out ${
-                activeTab === 'dashboard'
-                  ? 'bg-neutral-100 text-neutral-950 font-semibold shadow'
-                  : 'text-neutral-400 hover:text-neutral-200 hover:bg-neutral-800/60'
-              }`}
-            >
-              <Layers className="w-3.5 h-3.5" />
-              <span>NODES & BENTO</span>
-            </button>
-
-            <button
-              id="nav-tab-tester"
-              onClick={() => onSelectTab('tester')}
-              className={`flex items-center gap-2 px-3 py-1.5 text-xs font-mono tracking-wide rounded-none transition-all duration-200 ease-out ${
-                activeTab === 'tester'
-                  ? 'bg-neutral-100 text-neutral-950 font-semibold shadow'
-                  : 'text-neutral-400 hover:text-neutral-200 hover:bg-neutral-800/60'
-              }`}
-            >
-              <Terminal className="w-3.5 h-3.5" />
-              <span>EDGE TESTER</span>
-            </button>
-
-            <button
-              id="nav-tab-quota"
-              onClick={() => onSelectTab('quota')}
-              className={`flex items-center gap-2 px-3 py-1.5 text-xs font-mono tracking-wide rounded-none transition-all duration-200 ease-out ${
-                activeTab === 'quota'
-                  ? 'bg-neutral-100 text-neutral-950 font-semibold shadow'
-                  : 'text-neutral-400 hover:text-neutral-200 hover:bg-neutral-800/60'
-              }`}
-            >
-              <Flame className="w-3.5 h-3.5 text-emerald-400" />
-              <span>DAILY QUOTA &amp; BURN</span>
-            </button>
-
-            <button
-              id="nav-tab-telemetry"
-              onClick={() => onSelectTab('telemetry')}
-              className={`flex items-center gap-2 px-3 py-1.5 text-xs font-mono tracking-wide rounded-none transition-all duration-200 ease-out ${
-                activeTab === 'telemetry'
-                  ? 'bg-neutral-100 text-neutral-950 font-semibold shadow'
-                  : 'text-neutral-400 hover:text-neutral-200 hover:bg-neutral-800/60'
-              }`}
-            >
-              <Activity className="w-3.5 h-3.5" />
-              <span>METRICS &amp; LOGS</span>
-            </button>
-
-            <button
-              id="nav-tab-export"
-              onClick={() => onSelectTab('export')}
-              className={`flex items-center gap-2 px-3 py-1.5 text-xs font-mono tracking-wide rounded-none transition-all duration-200 ease-out ${
-                activeTab === 'export'
-                  ? 'bg-neutral-100 text-neutral-950 font-semibold shadow'
-                  : 'text-neutral-400 hover:text-neutral-200 hover:bg-neutral-800/60'
-              }`}
-            >
-              <Plug className="w-3.5 h-3.5" />
-              <span>CONNECT</span>
-            </button>
-
-            <button
-              id="nav-tab-monitor"
-              onClick={() => onSelectTab('monitor')}
-              className={`flex items-center gap-2 px-3 py-1.5 text-xs font-mono tracking-wide rounded-none transition-all duration-200 ease-out ${
-                activeTab === 'monitor'
-                  ? 'bg-neutral-100 text-neutral-950 font-semibold shadow'
-                  : 'text-neutral-400 hover:text-neutral-200 hover:bg-neutral-800/60'
-              }`}
-            >
-              <Radar className="w-3.5 h-3.5" />
-              <span>API MONITOR</span>
-            </button>
+          {/* Desktop / tablet tab navigation */}
+          <nav
+            className="hidden lg:flex items-center gap-0.5 rounded-xl border border-white/8 bg-white/[0.03] p-1 flex-shrink-0"
+            role="tablist"
+            aria-label="Main sections"
+          >
+            {NAV_TABS.map(({ id, label, Icon }) => {
+              const active = activeTab === id;
+              return (
+                <button
+                  key={id}
+                  id={`nav-tab-${id}`}
+                  type="button"
+                  role="tab"
+                  aria-selected={active}
+                  onClick={() => onSelectTab(id)}
+                  className={`ui-tab relative flex items-center gap-1.5 rounded-lg px-3 py-2 text-[11.5px] font-bold tracking-wide transition-all duration-200 ${
+                    active
+                      ? 'bg-gradient-to-br from-emerald-400/20 to-cyan-400/12 text-white shadow-[inset_0_0_0_1px_rgba(52,211,153,0.4),0_6px_20px_-10px_rgba(52,211,153,0.8)]'
+                      : 'text-neutral-400 hover:bg-white/6 hover:text-neutral-100'
+                  }`}
+                >
+                  <Icon className={`h-3.5 w-3.5 ${active ? 'text-emerald-300' : ''}`} strokeWidth={active ? 2.5 : 2} />
+                  {label}
+                  {active && (
+                    <span className="pointer-events-none absolute inset-x-3 -bottom-px h-px bg-gradient-to-r from-transparent via-emerald-300/80 to-transparent" />
+                  )}
+                </button>
+              );
+            })}
           </nav>
 
           {/* Action Buttons */}
@@ -385,76 +348,6 @@ export const Navbar: React.FC<NavbarProps> = ({
             </button>
           </div>
         </div>
-      </div>
-
-      {/* Mobile sub-nav with accessible touch targets (44px min height) */}
-      <div className="lg:hidden grid grid-cols-6 border-t border-neutral-800 bg-neutral-950 text-[10px] font-mono w-full max-w-full overflow-hidden">
-        <button
-          onClick={() => onSelectTab('dashboard')}
-          className={`flex flex-col items-center justify-center py-2 px-0.5 min-h-[44px] transition-colors w-full min-w-0 ${
-            activeTab === 'dashboard'
-              ? 'text-white bg-neutral-900 border-b-2 border-white font-bold'
-              : 'text-neutral-400 hover:text-neutral-200'
-          }`}
-        >
-          <Layers className="w-3.5 h-3.5 mb-0.5 flex-shrink-0" />
-          <span className="truncate max-w-full text-center text-[10px]">NODES</span>
-        </button>
-        <button
-          onClick={() => onSelectTab('tester')}
-          className={`flex flex-col items-center justify-center py-2 px-0.5 min-h-[44px] transition-colors w-full min-w-0 ${
-            activeTab === 'tester'
-              ? 'text-white bg-neutral-900 border-b-2 border-white font-bold'
-              : 'text-neutral-400 hover:text-neutral-200'
-          }`}
-        >
-          <Terminal className="w-3.5 h-3.5 mb-0.5 flex-shrink-0" />
-          <span className="truncate max-w-full text-center text-[10px]">TESTER</span>
-        </button>
-        <button
-          onClick={() => onSelectTab('quota')}
-          className={`flex flex-col items-center justify-center py-2 px-0.5 min-h-[44px] transition-colors w-full min-w-0 ${
-            activeTab === 'quota'
-              ? 'text-white bg-neutral-900 border-b-2 border-white font-bold'
-              : 'text-neutral-400 hover:text-neutral-200'
-          }`}
-        >
-          <Flame className="w-3.5 h-3.5 mb-0.5 text-emerald-400 flex-shrink-0" />
-          <span className="truncate max-w-full text-center text-[10px]">QUOTA</span>
-        </button>
-        <button
-          onClick={() => onSelectTab('telemetry')}
-          className={`flex flex-col items-center justify-center py-2 px-0.5 min-h-[44px] transition-colors w-full min-w-0 ${
-            activeTab === 'telemetry'
-              ? 'text-white bg-neutral-900 border-b-2 border-white font-bold'
-              : 'text-neutral-400 hover:text-neutral-200'
-          }`}
-        >
-          <Activity className="w-3.5 h-3.5 mb-0.5 flex-shrink-0" />
-          <span className="truncate max-w-full text-center text-[10px]">METRICS</span>
-        </button>
-        <button
-          onClick={() => onSelectTab('export')}
-          className={`flex flex-col items-center justify-center py-2 px-0.5 min-h-[44px] transition-colors w-full min-w-0 ${
-            activeTab === 'export'
-              ? 'text-white bg-neutral-900 border-b-2 border-white font-bold'
-              : 'text-neutral-400 hover:text-neutral-200'
-          }`}
-        >
-          <Plug className="w-3.5 h-3.5 mb-0.5 flex-shrink-0" />
-          <span className="truncate max-w-full text-center text-[10px]">CONNECT</span>
-        </button>
-        <button
-          onClick={() => onSelectTab('monitor')}
-          className={`flex flex-col items-center justify-center py-2 px-0.5 min-h-[44px] transition-colors w-full min-w-0 ${
-            activeTab === 'monitor'
-              ? 'text-white bg-neutral-900 border-b-2 border-white font-bold'
-              : 'text-neutral-400 hover:text-neutral-200'
-          }`}
-        >
-          <Radar className="w-3.5 h-3.5 mb-0.5 flex-shrink-0" />
-          <span className="truncate max-w-full text-center text-[10px]">MONITOR</span>
-        </button>
       </div>
     </header>
   );

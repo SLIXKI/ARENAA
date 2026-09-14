@@ -3,31 +3,62 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense, lazy } from 'react';
 import { Navbar } from './components/Navbar';
-import { BentoDashboard } from './components/BentoDashboard';
-import { EdgeTester } from './components/EdgeTester';
-import { DailyQuotaTracker } from './components/DailyQuotaTracker';
-import { TelemetryView } from './components/TelemetryView';
-import { ConnectHub } from './components/ConnectHub';
-import { ApiMonitor } from './components/ApiMonitor';
-import { EndpointModal } from './components/EndpointModal';
-import { ProviderModal } from './components/ProviderModal';
+
+
+
+
+
+
+
+
 import { OperatorLoginModal } from './components/OperatorLoginModal';
-import { ProfileModal } from './components/ProfileModal';
-import { ProviderKeysModal } from './components/ProviderKeysModal';
+
+
 import { NotificationsBell } from './components/NotificationsBell';
 import { Toasts } from './components/Toasts';
 import { notify, subscribeNotifications, loadNotifications, saveNotifications, type AppNotification } from './utils/notify';
 import { getAllProviderKeys, getProviderKeys, addProviderKey, migratePoolsToUniversal } from './utils/providerKeys';
 import { runCatalogSync, CATALOG_INTERVAL_MS } from './utils/catalog';
-import { AutonomousCopilot } from './components/AutonomousCopilot';
+
 import { INITIAL_PROVIDERS, INITIAL_ENDPOINTS, INITIAL_FALLBACK_CHAIN, INITIAL_DAILY_USAGES } from './data/initialData';
 import { Provider, Endpoint, RoutingPolicy, RoutingDecision, WatchdogEvent } from './types/router';
 import { EdgeRouterEngine } from './services/edgeRouterEngine';
 import { AutonomousWatchdogService } from './services/autonomousWatchdog';
 import { getSessionUsername, setSession, clearSession, syncUserGeminiKey } from './utils/auth';
 import { computeStats } from './utils/probe';
+
+// Heavy, tab-scoped panels are code-split: the first paint only downloads the
+// shell, Navbar and login gate. Each tab chunk loads on first visit.
+const BentoDashboard = lazy(() => import('./components/BentoDashboard').then((m) => ({ default: m.BentoDashboard })));
+const EdgeTester = lazy(() => import('./components/EdgeTester').then((m) => ({ default: m.EdgeTester })));
+const DailyQuotaTracker = lazy(() => import('./components/DailyQuotaTracker').then((m) => ({ default: m.DailyQuotaTracker })));
+const TelemetryView = lazy(() => import('./components/TelemetryView').then((m) => ({ default: m.TelemetryView })));
+const ConnectHub = lazy(() => import('./components/ConnectHub').then((m) => ({ default: m.ConnectHub })));
+const ApiMonitor = lazy(() => import('./components/ApiMonitor').then((m) => ({ default: m.ApiMonitor })));
+const EndpointModal = lazy(() => import('./components/EndpointModal').then((m) => ({ default: m.EndpointModal })));
+const ProviderModal = lazy(() => import('./components/ProviderModal').then((m) => ({ default: m.ProviderModal })));
+const ProfileModal = lazy(() => import('./components/ProfileModal').then((m) => ({ default: m.ProfileModal })));
+const ProviderKeysModal = lazy(() => import('./components/ProviderKeysModal').then((m) => ({ default: m.ProviderKeysModal })));
+const MobileTabBar = lazy(() => import('./components/MobileTabBar').then((m) => ({ default: m.MobileTabBar })));
+const OnboardingWizard = lazy(() => import('./components/OnboardingWizard').then((m) => ({ default: m.OnboardingWizard })));
+const AutonomousCopilot = lazy(() => import('./components/AutonomousCopilot').then((m) => ({ default: m.AutonomousCopilot })));
+
+/** Shown while a lazily-loaded tab chunk is in flight. */
+function TabFallback() {
+  return (
+    <div className="space-y-4 p-1" aria-busy="true" aria-live="polite">
+      <div className="skeleton-shimmer h-9 w-56 border border-white/10" />
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {Array.from({ length: 6 }).map((_, i) => (
+          <div key={i} className="skeleton-shimmer h-36 border border-white/10" />
+        ))}
+      </div>
+      <span className="sr-only">Loading panel…</span>
+    </div>
+  );
+}
 
 // Runs ONCE at module load — BEFORE any useState initializer reads localStorage.
 // (Old code ran migration inside a later initializer, so stale provider lists won.)
@@ -233,6 +264,8 @@ export default function App() {
   const [isCopilotOpen, setIsCopilotOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isKeysOpen, setIsKeysOpen] = useState(false);
+  // First-run guided setup. Offered once, whenever the user has no keys yet.
+  const [showOnboarding, setShowOnboarding] = useState(false);
 
   // Notifications: manual actions + agent actions land here (persisted, capped at 50)
   const [notifications, setNotifications] = useState<AppNotification[]>(() => loadNotifications());
@@ -296,6 +329,34 @@ export default function App() {
       },
     ];
   });
+
+  // Offer the guided setup the first time someone lands with no provider keys.
+  // Deliberately not forced: it is skippable and never shown again once done.
+  useEffect(() => {
+    if (!loggedUser) return;
+    try {
+      if (localStorage.getItem('er_onboarded_v1') === '1') return;
+      const existing = getProviderKeys('Edge Router').filter((k) => k !== userGeminiKey);
+      if (existing.length === 0) setShowOnboarding(true);
+    } catch { /* storage unavailable — stay quiet */ }
+  }, [loggedUser]);
+
+  const markOnboarded = () => {
+    try { localStorage.setItem('er_onboarded_v1', '1'); } catch { /* ignore */ }
+    setShowOnboarding(false);
+  };
+
+  const handleOnboardAddKey = (key: string, upstreamTag?: string) => {
+    const res = addProviderKey('Edge Router', key, '', upstreamTag || '');
+    if (res.ok) notify('success', 'Key saved', `${upstreamTag ? upstreamTag.replace('prov-', '') : 'provider'} key added to the pool.`);
+    return res;
+  };
+
+  const handleOnboardFreeTier = () => {
+    const res = addProviderKey('Edge Router', 'pollinations-free-tier', '', 'prov-pollinations');
+    if (res.ok) notify('success', 'Free key added', 'Pollinations needs no signup — you can send a request right now.');
+    return res;
+  };
 
   const handleLoginSuccess = (username: string, key: string) => {
     setLoggedUser(username);
@@ -697,11 +758,12 @@ export default function App() {
       />
 
       {/* Main Content with clean responsive containment */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-2.5 sm:px-6 lg:px-8 pt-4 sm:pt-8 pb-16 sm:pb-20 overflow-x-hidden min-w-0 max-w-full">
+      <main className="ui-has-tabbar flex-1 max-w-7xl w-full mx-auto px-2.5 sm:px-6 lg:px-8 pt-4 sm:pt-8 pb-16 sm:pb-20 overflow-x-hidden min-w-0 max-w-full">
         <div
           key={activeTab + activeProviderId}
           className="min-w-0 w-full max-w-full overflow-x-hidden"
         >
+          <Suspense fallback={<TabFallback />}>
           {activeTab === 'dashboard' && (
             <BentoDashboard
               activeProvider={activeProvider}
@@ -775,6 +837,7 @@ export default function App() {
           {activeTab === 'monitor' && (
             <ApiMonitor providers={providers} />
           )}
+          </Suspense>
         </div>
       </main>
 
@@ -848,6 +911,24 @@ export default function App() {
           } catch { /* ignore */ }
         }}
       />
+
+      {/* Thumb-reachable bottom navigation on phones (hidden from sm: up) */}
+      <Suspense fallback={null}>
+        <MobileTabBar activeTab={activeTab} onSelectTab={setActiveTab} />
+      </Suspense>
+
+      {/* First-run guided setup */}
+      {showOnboarding && (
+        <Suspense fallback={null}>
+          <OnboardingWizard
+            existingKeyCount={(() => { try { return getProviderKeys('Edge Router').length; } catch { return 0; } })()}
+            onAddKey={handleOnboardAddKey}
+            onAddFreeTier={handleOnboardFreeTier}
+            onComplete={() => { markOnboarded(); setActiveTab('export'); }}
+            onSkip={markOnboarded}
+          />
+        </Suspense>
+      )}
 
       {/* Toasts for latest notifications */}
       <Toasts items={toasts} />

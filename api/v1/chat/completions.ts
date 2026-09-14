@@ -477,7 +477,7 @@ function flattenMasterPools(payload: any): PoolItem[] {
   return out;
 }
 
-async function relayOpenAI(opts: { baseUrl: string; apiKey: string; model: string; messages: any[]; maxTokens: number; temperature: number }): Promise<{ ok: boolean; status: number; data: any }> {
+async function relayOpenAI(opts: { baseUrl: string; apiKey: string; model: string; messages: any[]; maxTokens: number; temperature: number; tools?: any[]; toolChoice?: any }): Promise<{ ok: boolean; status: number; data: any }> {
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     Authorization: `Bearer ${opts.apiKey}`,
@@ -489,7 +489,10 @@ async function relayOpenAI(opts: { baseUrl: string; apiKey: string; model: strin
     resp = await fetch(`${opts.baseUrl.replace(/\/+$/, "")}/chat/completions`, {
       method: "POST",
       headers,
-      body: JSON.stringify({ model: opts.model, messages: opts.messages, max_tokens: opts.maxTokens, temperature: opts.temperature }),
+      body: JSON.stringify({
+        model: opts.model, messages: opts.messages, max_tokens: opts.maxTokens, temperature: opts.temperature,
+        ...(Array.isArray(opts.tools) && opts.tools.length > 0 ? { tools: opts.tools, ...(opts.toolChoice !== undefined ? { tool_choice: opts.toolChoice } : {}) } : {}),
+      }),
     });
   } catch (e: any) {
     return { ok: false, status: 502, data: { message: `Upstream unreachable: ${e?.message || e}` } };
@@ -553,6 +556,217 @@ async function relayAnthropic(opts: { apiKey: string; model: string; messages: a
   };
 }
 
+// ---------------------------------------------------------------------------
+// Streaming (SSE) support for /api/v1/chat/completions
+//
+// Design rule that matters: response headers are written ONLY after the chosen
+// upstream returns 200. That keeps key rotation working in streaming mode — a
+// 429 on key #1 can still fall through to key #2 before a single byte reaches
+// the client. Once streaming has begun we are committed and can no longer retry.
+// ---------------------------------------------------------------------------
+
+function streamCompletionId(): string {
+  return `chatcmpl-edge-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function sseFrame(payload: any): string {
+  return `data: ${JSON.stringify(payload)}\n\n`;
+}
+
+async function openOpenAIStream(opts: {
+  baseUrl: string; apiKey: string; model: string; messages: any[];
+  maxTokens: number; temperature: number; tools?: any[]; toolChoice?: any;
+}): Promise<Response | null> {
+  const body: any = {
+    model: opts.model,
+    messages: opts.messages,
+    max_tokens: opts.maxTokens,
+    temperature: opts.temperature,
+    stream: true,
+  };
+  if (Array.isArray(opts.tools) && opts.tools.length > 0) {
+    body.tools = opts.tools;
+    if (opts.toolChoice !== undefined) body.tool_choice = opts.toolChoice;
+  }
+  try {
+    return await fetch(`${opts.baseUrl.replace(/\/+$/, "")}/chat/completions`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${opts.apiKey}`,
+        Accept: "text/event-stream",
+        "HTTP-Referer": siteReferer(),
+        "X-Title": "Edge Router",
+      },
+      body: JSON.stringify(body),
+    });
+  } catch {
+    return null;
+  }
+}
+
+async function openAnthropicStream(opts: {
+  apiKey: string; model: string; messages: any[]; maxTokens: number; temperature: number;
+}): Promise<Response | null> {
+  const sys = opts.messages.filter((m) => m.role === "system").map((m) => textOf(m.content)).filter(Boolean).join("\n");
+  const msgs = opts.messages
+    .filter((m) => m.role !== "system")
+    .map((m) => ({ role: m.role === "assistant" ? "assistant" : "user", content: m.content }));
+  if (msgs.length === 0) msgs.push({ role: "user", content: "hi" });
+  const body: any = {
+    model: opts.model,
+    max_tokens: Math.max(1, Math.min(opts.maxTokens || 1024, 8192)),
+    messages: msgs,
+    temperature: opts.temperature,
+    stream: true,
+  };
+  if (sys) body.system = sys;
+  try {
+    return await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": opts.apiKey,
+        "anthropic-version": "2023-06-01",
+        Accept: "text/event-stream",
+      },
+      body: JSON.stringify(body),
+    });
+  } catch {
+    return null;
+  }
+}
+
+/** Flatten OpenAI/Anthropic message content into plain text. */
+function textOf(content: any): string {
+  if (typeof content === "string") return content;
+  if (Array.isArray(content)) {
+    return content
+      .map((p: any) => (typeof p === "string" ? p : p?.type === "text" ? p.text || "" : ""))
+      .join("");
+  }
+  return "";
+}
+
+/** Walk an SSE byte stream, invoking onEvent for every complete `data:` payload. */
+async function eachSseEvent(
+  resp: Response,
+  onEvent: (dataLine: string) => void,
+): Promise<void> {
+  if (!resp.body) return;
+  const reader = resp.body.getReader();
+  const decoder = new TextDecoder();
+  let buf = "";
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buf += decoder.decode(value, { stream: true });
+      let sep: number;
+      // SSE frames are separated by a blank line.
+      while ((sep = buf.indexOf("\n\n")) !== -1) {
+        const frame = buf.slice(0, sep);
+        buf = buf.slice(sep + 2);
+        for (const line of frame.split("\n")) {
+          if (line.startsWith("data:")) onEvent(line.slice(5).trim());
+        }
+      }
+    }
+    if (buf.trim()) {
+      for (const line of buf.split("\n")) {
+        if (line.startsWith("data:")) onEvent(line.slice(5).trim());
+      }
+    }
+  } finally {
+    try { reader.releaseLock(); } catch { /* already released */ }
+  }
+}
+
+/** Pass an OpenAI-compatible SSE stream straight through. */
+async function pipeRawSSE(resp: Response, res: any): Promise<void> {
+  await eachSseEvent(resp, (data) => {
+    if (!data) return;
+    res.write(`data: ${data}\n\n`);
+  });
+  res.write("data: [DONE]\n\n");
+}
+
+/** Translate an Anthropic SSE stream into OpenAI chat.completion.chunk frames. */
+async function pipeAnthropicAsOpenAI(resp: Response, res: any, meta: { id: string; model: string }): Promise<void> {
+  const base = { id: meta.id, object: "chat.completion.chunk", created: Math.floor(Date.now() / 1000), model: meta.model };
+  let opened = false;
+  // Track tool-call blocks so we can stream their JSON arguments incrementally.
+  const toolIndexByBlock = new Map<number, number>();
+  let nextToolIndex = 0;
+
+  const ensureOpen = () => {
+    if (opened) return;
+    opened = true;
+    res.write(sseFrame({ ...base, choices: [{ index: 0, delta: { role: "assistant", content: "" }, finish_reason: null }] }));
+  };
+
+  await eachSseEvent(resp, (data) => {
+    if (!data || data === "[DONE]") return;
+    let ev: any;
+    try { ev = JSON.parse(data); } catch { return; }
+
+    switch (ev.type) {
+      case "content_block_start": {
+        const block = ev.content_block || {};
+        if (block.type === "tool_use") {
+          const idx = nextToolIndex++;
+          toolIndexByBlock.set(typeof ev.index === "number" ? ev.index : -1, idx);
+          ensureOpen();
+          res.write(sseFrame({
+            ...base,
+            choices: [{
+              index: 0,
+              delta: { tool_calls: [{ index: idx, id: block.id || "", type: "function", function: { name: block.name || "", arguments: "" } }] },
+              finish_reason: null,
+            }],
+          }));
+        }
+        break;
+      }
+      case "content_block_delta": {
+        const d = ev.delta || {};
+        if (d.type === "text_delta" && typeof d.text === "string" && d.text.length > 0) {
+          ensureOpen();
+          res.write(sseFrame({ ...base, choices: [{ index: 0, delta: { content: d.text }, finish_reason: null }] }));
+        } else if (d.type === "input_json_delta" && typeof d.partial_json === "string" && d.partial_json.length > 0) {
+          const idx = toolIndexByBlock.get(typeof ev.index === "number" ? ev.index : -1) ?? 0;
+          ensureOpen();
+          res.write(sseFrame({
+            ...base,
+            choices: [{ index: 0, delta: { tool_calls: [{ index: idx, function: { arguments: d.partial_json } }] }, finish_reason: null }],
+          }));
+        }
+        break;
+      }
+      case "message_delta": {
+        const reason = ev?.delta?.stop_reason;
+        const finish = reason === "max_tokens" ? "length" : reason === "tool_use" ? "tool_calls" : reason ? "stop" : null;
+        if (finish) {
+          ensureOpen();
+          res.write(sseFrame({ ...base, choices: [{ index: 0, delta: {}, finish_reason: finish }] }));
+        }
+        break;
+      }
+      case "error": {
+        res.write(sseFrame({ ...base, choices: [{ index: 0, delta: { content: `\n[upstream error: ${ev?.error?.message || "unknown"}]` }, finish_reason: "stop" }] }));
+        break;
+      }
+      default:
+        break; // message_start / content_block_stop / ping / message_stop need no OpenAI frame
+    }
+  });
+
+  if (!opened) {
+    res.write(sseFrame({ ...base, choices: [{ index: 0, delta: { role: "assistant", content: "" }, finish_reason: "stop" }] }));
+  }
+  res.write("data: [DONE]\n\n");
+}
+
 export default async function handler(req: any, res: any) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: { message: "Method not allowed", type: "invalid_request_error" } });
@@ -561,6 +775,9 @@ export default async function handler(req: any, res: any) {
   try {
     const body = req.body || {};
     const { messages = [], model, max_tokens = 800, temperature = 0.7 } = body;
+    const wantStream = body.stream === true;
+    const tools = Array.isArray(body.tools) && body.tools.length > 0 ? body.tools : undefined;
+    const toolChoice = tools ? body.tool_choice : undefined;
 
     if (!Array.isArray(messages) || messages.length === 0) {
       return res.status(400).json({ error: { message: "Invalid messages array", type: "invalid_request_error" } });
@@ -609,10 +826,22 @@ export default async function handler(req: any, res: any) {
     let wanted = (typeof model === "string" && model) || "gemini-flash-latest";
     if (LEGACY_GEMINI_ALIAS[wanted]) wanted = LEGACY_GEMINI_ALIAS[wanted];
 
-    const openaiMessages = messages.map((m: any) => ({
-      role: m.role === "system" || m.role === "assistant" || m.role === "user" ? m.role : "user",
-      content: typeof m.content === "string" ? m.content : "",
-    }));
+    // Preserve OpenAI-shaped messages instead of flattening them. The previous
+    // mapping kept only { role, content:string }, which silently discarded
+    // multimodal content arrays, assistant tool_calls and role:"tool" results —
+    // breaking every tool-using or vision client that talked to this gateway.
+    const openaiMessages = messages.map((m: any) => {
+      const role = ["system", "assistant", "user", "tool"].includes(m?.role) ? m.role : "user";
+      const out: any = { role };
+      if (typeof m?.content === "string") out.content = m.content;
+      else if (Array.isArray(m?.content)) out.content = m.content;
+      else if (m?.content == null) out.content = role === "assistant" ? null : "";
+      else out.content = String(m.content);
+      if (Array.isArray(m?.tool_calls) && m.tool_calls.length > 0) out.tool_calls = m.tool_calls;
+      if (typeof m?.tool_call_id === "string") out.tool_call_id = m.tool_call_id;
+      if (typeof m?.name === "string") out.name = m.name;
+      return out;
+    });
 
     // Model -> upstream; unknown model -> smart order me try (404/400 pe next).
     const target = customBase ? null : upstreamForModel(wanted);
@@ -648,10 +877,57 @@ export default async function handler(req: any, res: any) {
           break;
         }
       }
+      if (wantStream) {
+        const hs = keyHash(item.key);
+        const isAnth = !itemBase && up.native === "anthropic";
+        const t0 = Date.now();
+        const sresp = isAnth
+          ? await openAnthropicStream({ apiKey: item.key, model: wanted, messages: openaiMessages, maxTokens: max_tokens, temperature })
+          : await openOpenAIStream({ baseUrl: up.baseUrl, apiKey: item.key, model: wanted, messages: openaiMessages, maxTokens: max_tokens, temperature, tools, toolChoice });
+        const sstatus = sresp ? sresp.status : 502;
+        if (sresp && sresp.ok && sresp.body) {
+          // Headers only now: rotation still works in streaming mode.
+          res.writeHead(200, {
+            "Content-Type": "text/event-stream; charset=utf-8",
+            "Cache-Control": "no-cache, no-transform",
+            Connection: "keep-alive",
+            "X-Accel-Buffering": "no",
+            "X-Edge-Provider": UNIVERSAL_ID,
+            "X-Edge-Upstream": servedId,
+            "X-Edge-Key-Index": String(i),
+            "X-Edge-Keys-Tried": String(i + 1),
+            "X-Edge-Latency-Ms": String(Date.now() - t0),
+            "X-Edge-Router-Region": "global-anycast",
+          });
+          try {
+            if (isAnth) await pipeAnthropicAsOpenAI(sresp, res, { id: streamCompletionId(), model: wanted });
+            else await pipeRawSSE(sresp, res);
+          } catch { /* client disconnected mid-stream */ }
+          keyFail429.delete(hs); keyFailOther.delete(hs); keyCooldownUntil.delete(hs);
+          res.end();
+          return;
+        }
+        lastErr = sresp ? `Upstream HTTP ${sstatus}` : "Upstream unreachable";
+        if (sstatus === 429) {
+          keyCooldownUntil.set(hs, Date.now() + COOLDOWN_MS);
+          keyFail429.set(hs, (keyFail429.get(hs) || 0) + 1);
+          rateLimitedPrefixes.push(item.key.slice(0, 8));
+        } else if (sstatus === 401 || sstatus === 403) {
+          if ((!customBase && effHint !== "unknown" && effHint === servedId) || (!customBase && !!itemBase)) {
+            deadKeyIndexes.push(i); deadKeyPrefixes.push(item.key.slice(0, 8));
+          } else {
+            keyFailOther.set(hs, (keyFailOther.get(hs) || 0) + 1);
+          }
+        } else {
+          keyFailOther.set(hs, (keyFailOther.get(hs) || 0) + 1);
+        }
+        if (!retryable(sstatus, servedId)) break;
+        continue;
+      }
       keyLastUsed.set(keyHash(item.key), Date.now());
       const r = !itemBase && up.native === "anthropic"
         ? await relayAnthropic({ apiKey: item.key, model: wanted, messages: openaiMessages, maxTokens: max_tokens, temperature })
-        : await relayOpenAI({ baseUrl: up.baseUrl, apiKey: item.key, model: wanted, messages: openaiMessages, maxTokens: max_tokens, temperature });
+        : await relayOpenAI({ baseUrl: up.baseUrl, apiKey: item.key, model: wanted, messages: openaiMessages, maxTokens: max_tokens, temperature, tools, toolChoice });
       if (r.ok) {
         const latencyMs = Date.now() - startTime;
         const d = r.data || {};
