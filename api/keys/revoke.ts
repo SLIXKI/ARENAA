@@ -23,9 +23,12 @@ function masterSecret(): Buffer {
   }
   const isProd = process.env.NODE_ENV === "production" || !!process.env.VERCEL;
   if (isProd) {
-    throw new Error(
-      "MASTER_KEY_SECRET is not configured. Refusing to mint or decrypt master keys with a published fallback secret. Set a random MASTER_KEY_SECRET (16+ chars) in the host environment.",
+    const err: any = new Error(
+      "MASTER_KEY_SECRET is not configured. Refusing to mint or decrypt master keys with a published fallback secret. Set a random MASTER_KEY_SECRET (16+ chars) in the host environment — generate one with: openssl rand -hex 32",
     );
+    err.code = "MASTER_KEY_SECRET_MISSING";
+    err.status = 503;
+    throw err;
   }
   try {
     const file = path.join(process.cwd(), DEV_SECRET_FILE);
@@ -113,6 +116,9 @@ export default async function handler(req: any, res: any) {
     return res.json({ revoked: true, mode: "global", mid, message: "Master key turant cut — kahin bhi kaam nahi karegi." });
   } catch (err: any) {
     console.error("keys/revoke error:", err?.message || err);
+    if ((err as any)?.code === "MASTER_KEY_SECRET_MISSING") {
+      return res.status(503).json({ error: { message: (err as any).message, type: "server_misconfigured", code: "MASTER_KEY_SECRET_MISSING" } });
+    }
     return res.status(500).json({ revoked: false, error: "Revoke fail ho gaya" });
   }
 }

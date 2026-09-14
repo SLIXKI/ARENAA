@@ -401,9 +401,12 @@ function masterSecretBuf(): Buffer {
   }
   const isProd = process.env.NODE_ENV === "production" || !!process.env.VERCEL;
   if (isProd) {
-    throw new Error(
-      "MASTER_KEY_SECRET is not configured. Refusing to mint or decrypt master keys with a published fallback secret. Set a random MASTER_KEY_SECRET (16+ chars) in the host environment.",
+    const err: any = new Error(
+      "MASTER_KEY_SECRET is not configured. Refusing to mint or decrypt master keys with a published fallback secret. Set a random MASTER_KEY_SECRET (16+ chars) in the host environment — generate one with: openssl rand -hex 32",
     );
+    err.code = "MASTER_KEY_SECRET_MISSING";
+    err.status = 503;
+    throw err;
   }
   try {
     const file = path.join(process.cwd(), DEV_SECRET_FILE);
@@ -437,6 +440,7 @@ function masterDecryptLocal(token: string): any {
     payload = JSON.parse(inflateSync(Buffer.concat([d.update(ct), d.final()])).toString("utf8"));
   } catch (err: any) {
     if (err?.code === "NOT_MASTER") throw err;
+    if (err?.code === "MASTER_KEY_SECRET_MISSING") throw err; // server misconfig, not a bad token
     const e: any = new Error("bad-master-key");
     e.code = "BAD_MASTER";
     throw e;
@@ -480,7 +484,7 @@ async function resolveKeyPool(
   req: any,
   body: any,
   providerId: string
-): Promise<{ keys: PoolItemLocal[]; error?: string }> {
+): Promise<{ keys: PoolItemLocal[]; error?: string; code?: string }> {
   const keys = collectRelayKeys(req, body);
   const maybeMaster =
     keys.find((k) => k.key.startsWith(MASTER_PREFIX))?.key ||
@@ -492,7 +496,12 @@ async function resolveKeyPool(
   } catch (e: any) {
     return {
       keys: [],
-      error: e?.code === "EXPIRED" ? "Master key expire ho gayi — site se Regenerate karo." : "Master key invalid hai — site se dobara copy karo.",
+      code: e?.code,
+      error: e?.code === "MASTER_KEY_SECRET_MISSING"
+        ? e.message
+        : e?.code === "EXPIRED"
+          ? "Master key expire ho gayi — site se Regenerate karo."
+          : "Master key invalid hai — site se dobara copy karo.",
     };
   }
   if (await isMasterRevokedLocal(payload.mid)) {
@@ -630,6 +639,11 @@ app.get("/api/v1/models", (req, res) => {
         })),
       });
     } catch (e: any) {
+      if (e?.code === "MASTER_KEY_SECRET_MISSING") {
+        return res.status(503).json({
+          error: { message: e.message, type: "server_misconfigured", code: e.code },
+        });
+      }
       return res.status(401).json({
         error: {
           message: e?.code === "EXPIRED" ? "Master key expire ho gayi — Regenerate karo." : "Master key invalid hai.",
@@ -889,6 +903,9 @@ app.post("/api/router/inference", async (req, res) => {
     const pool = await resolveKeyPool(req, body, "Edge Router");
     const keys = pool.keys;
     if (keys.length === 0) {
+      if (pool.code === "MASTER_KEY_SECRET_MISSING") {
+        return res.status(503).json({ error: { message: pool.error, type: "server_misconfigured", code: pool.code } });
+      }
       return res.status(401).json({ error: pool.error || "Login required: KEYS me key dalo." });
     }
 
@@ -1516,7 +1533,15 @@ app.post("/api/anthropic/v1/messages", async (req, res) => {
     const maybeMaster = rawPool.find((p) => p.key.startsWith(MASTER_PREFIX))?.key || "";
     if (maybeMaster) {
       const resolved = await resolveKeyPool(req, { ...body, apiKeys: [maybeMaster] }, "Edge Router");
-      if (resolved.keys.length === 0) return anthErr(401, resolved.error || "Master key invalid hai.", "authentication_error");
+      if (resolved.keys.length === 0) {
+        // A misconfigured server is not an authentication failure — labelling it
+        // as one makes Claude Code tell the user their key is wrong.
+        return anthErr(
+          resolved.code === "MASTER_KEY_SECRET_MISSING" ? 503 : 401,
+          resolved.error || "Master key invalid hai.",
+          resolved.code === "MASTER_KEY_SECRET_MISSING" ? "api_error" : "authentication_error",
+        );
+      }
       effPool = resolved.keys;
     }
     if (effPool.length === 0) return anthErr(401, "API key dalo: ANTHROPIC_API_KEY me apni er1 master key rakho.", "authentication_error");
@@ -1797,6 +1822,10 @@ app.post("/api/keys/issue", async (req, res) => {
     if (masterKey.length > 7000) resp.sizeWarn = `Master token ${masterKey.length} chars ka hai (Vercel 4.5MB response limit OK, lekin header me mat bhejo — body.masterKey use karo).`;
     return res.json(resp);
   } catch (err: any) {
+    // A misconfigured server must say so instead of blaming the caller's key pool.
+    if (err?.code === "MASTER_KEY_SECRET_MISSING") {
+      return res.status(503).json({ error: err.message, code: err.code });
+    }
     return res.status(500).json({ error: "Issue fail ho gaya" });
   }
 });
@@ -1808,7 +1837,10 @@ app.post("/api/keys/status", async (req, res) => {
     let payload: any;
     try {
       payload = masterDecryptLocal(token);
-    } catch {
+    } catch (err: any) {
+      if (err?.code === "MASTER_KEY_SECRET_MISSING") {
+        return res.status(503).json({ valid: false, error: err.message, code: err.code });
+      }
       return res.status(401).json({ valid: false, error: "Master key invalid hai." });
     }
     const providers: Record<string, { count: number; gmails: string[] }> = {};

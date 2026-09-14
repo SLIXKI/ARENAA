@@ -25,9 +25,12 @@ function masterSecret(): Buffer {
   }
   const isProd = process.env.NODE_ENV === "production" || !!process.env.VERCEL;
   if (isProd) {
-    throw new Error(
-      "MASTER_KEY_SECRET is not configured. Refusing to mint or decrypt master keys with a published fallback secret. Set a random MASTER_KEY_SECRET (16+ chars) in the host environment.",
+    const err: any = new Error(
+      "MASTER_KEY_SECRET is not configured. Refusing to mint or decrypt master keys with a published fallback secret. Set a random MASTER_KEY_SECRET (16+ chars) in the host environment — generate one with: openssl rand -hex 32",
     );
+    err.code = "MASTER_KEY_SECRET_MISSING";
+    err.status = 503;
+    throw err;
   }
   try {
     const file = path.join(process.cwd(), DEV_SECRET_FILE);
@@ -43,7 +46,7 @@ function masterSecret(): Buffer {
   }
 }
 
-function tryMasterDecrypt(token: string): { ok: boolean; code?: string; payload?: any } {
+function tryMasterDecrypt(token: string): { ok: boolean; code?: string; payload?: any; message?: string } {
   try {
     const raw = Buffer.from(token.slice(MASTER_PREFIX.length), "base64url");
     if (raw.length < 29) return { ok: false, code: "BAD_MASTER" };
@@ -58,7 +61,12 @@ function tryMasterDecrypt(token: string): { ok: boolean; code?: string; payload?
     }
     if (payload.exp <= Date.now()) return { ok: false, code: "EXPIRED" };
     return { ok: true, payload };
-  } catch {
+  } catch (err: any) {
+    // Distinguish a misconfigured server from a genuinely bad token: reporting
+    // both as BAD_MASTER sends the operator hunting for a problem in their key.
+    if (err?.code === "MASTER_KEY_SECRET_MISSING") {
+      return { ok: false, code: "MASTER_KEY_SECRET_MISSING", message: err.message };
+    }
     return { ok: false, code: "BAD_MASTER" };
   }
 }
@@ -173,6 +181,11 @@ export default async function handler(req: any, res: any) {
   if (masterTok) {
     const chk = tryMasterDecrypt(masterTok);
     if (!chk.ok) {
+      if (chk.code === "MASTER_KEY_SECRET_MISSING") {
+        return res.status(503).json({
+          error: { message: chk.message, type: "server_misconfigured", code: chk.code },
+        });
+      }
       return res.status(401).json({
         error: {
           message: chk.code === "EXPIRED" ? "Master key expire ho gayi — Regenerate karo." : "Master key invalid hai.",

@@ -101,9 +101,12 @@ function masterSecret(): Buffer {
   }
   const isProd = process.env.NODE_ENV === "production" || !!process.env.VERCEL;
   if (isProd) {
-    throw new Error(
-      "MASTER_KEY_SECRET is not configured. Refusing to mint or decrypt master keys with a published fallback secret. Set a random MASTER_KEY_SECRET (16+ chars) in the host environment.",
+    const err: any = new Error(
+      "MASTER_KEY_SECRET is not configured. Refusing to mint or decrypt master keys with a published fallback secret. Set a random MASTER_KEY_SECRET (16+ chars) in the host environment — generate one with: openssl rand -hex 32",
     );
+    err.code = "MASTER_KEY_SECRET_MISSING";
+    err.status = 503;
+    throw err;
   }
   try {
     const file = path.join(process.cwd(), DEV_SECRET_FILE);
@@ -137,6 +140,7 @@ function masterDecrypt(token: string): any {
     payload = JSON.parse(inflateSync(Buffer.concat([d.update(ct), d.final()])).toString("utf8"));
   } catch (err: any) {
     if (err?.code === "NOT_MASTER") throw err;
+    if (err?.code === "MASTER_KEY_SECRET_MISSING") throw err; // server misconfig, not a bad token
     const e: any = new Error("bad-master-key");
     e.code = "BAD_MASTER";
     throw e;
@@ -444,6 +448,11 @@ export default async function handler(req: any, res: any) {
       try {
         payload = masterDecrypt(maybeMaster);
       } catch (e: any) {
+        // A misconfigured deployment is not the caller's authentication failure —
+        // labelling it as one makes Claude Code tell the user their key is wrong.
+        if (e?.code === "MASTER_KEY_SECRET_MISSING") {
+          return anthropicError(res, 503, e.message, "api_error");
+        }
         return anthropicError(res, 401, e?.code === "EXPIRED" ? "Master key expire ho gayi — site se Regenerate karo." : "Master key invalid hai — site se dobara copy karo.", "authentication_error");
       }
       if (await isMasterRevoked(payload.mid)) {
@@ -711,6 +720,9 @@ export default async function handler(req: any, res: any) {
     return anthropicError(res, lastStatus === 401 || lastStatus === 429 || lastStatus === 404 ? lastStatus : 502, `${lastErr} (${ordered.length} keys tried)`, type);
   } catch (err: any) {
     console.error("anthropic/messages error:", err);
+    if ((err as any)?.code === "MASTER_KEY_SECRET_MISSING") {
+      return res.status(503).json({ error: { message: (err as any).message, type: "server_misconfigured", code: "MASTER_KEY_SECRET_MISSING" } });
+    }
     return anthropicError(res, 500, err?.message || "messages failed");
   }
 }

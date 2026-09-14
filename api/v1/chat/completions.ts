@@ -100,9 +100,12 @@ function masterSecret(): Buffer {
   }
   const isProd = process.env.NODE_ENV === "production" || !!process.env.VERCEL;
   if (isProd) {
-    throw new Error(
-      "MASTER_KEY_SECRET is not configured. Refusing to mint or decrypt master keys with a published fallback secret. Set a random MASTER_KEY_SECRET (16+ chars) in the host environment.",
+    const err: any = new Error(
+      "MASTER_KEY_SECRET is not configured. Refusing to mint or decrypt master keys with a published fallback secret. Set a random MASTER_KEY_SECRET (16+ chars) in the host environment — generate one with: openssl rand -hex 32",
     );
+    err.code = "MASTER_KEY_SECRET_MISSING";
+    err.status = 503;
+    throw err;
   }
   try {
     const file = path.join(process.cwd(), DEV_SECRET_FILE);
@@ -136,6 +139,7 @@ function masterDecrypt(token: string): any {
     payload = JSON.parse(inflateSync(Buffer.concat([d.update(ct), d.final()])).toString("utf8"));
   } catch (err: any) {
     if (err?.code === "NOT_MASTER") throw err;
+    if (err?.code === "MASTER_KEY_SECRET_MISSING") throw err; // server misconfig, not a bad token
     const e: any = new Error("bad-master-key");
     e.code = "BAD_MASTER";
     throw e;
@@ -800,6 +804,10 @@ export default async function handler(req: any, res: any) {
       try {
         payload = masterDecrypt(maybeMaster);
       } catch (e: any) {
+        // A misconfigured deployment is not the caller's authentication failure.
+        if (e?.code === "MASTER_KEY_SECRET_MISSING") {
+          return res.status(503).json({ error: { message: e.message, type: "server_misconfigured", code: e.code } });
+        }
         const msg =
           e?.code === "EXPIRED"
             ? "Master key expire ho gayi — site se Regenerate karo."
@@ -1008,6 +1016,9 @@ export default async function handler(req: any, res: any) {
     });
   } catch (err: any) {
     console.error("Proxy completions error:", err);
+    if ((err as any)?.code === "MASTER_KEY_SECRET_MISSING") {
+      return res.status(503).json({ error: { message: (err as any).message, type: "server_misconfigured", code: "MASTER_KEY_SECRET_MISSING" } });
+    }
     return res.status(500).json({
       error: {
         message: err.message || "Proxy completion failed",

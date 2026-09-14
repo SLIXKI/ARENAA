@@ -56,9 +56,12 @@ function masterSecret(): Buffer {
   }
   const isProd = process.env.NODE_ENV === "production" || !!process.env.VERCEL;
   if (isProd) {
-    throw new Error(
-      "MASTER_KEY_SECRET is not configured. Refusing to mint or decrypt master keys with a published fallback secret. Set a random MASTER_KEY_SECRET (16+ chars) in the host environment.",
+    const err: any = new Error(
+      "MASTER_KEY_SECRET is not configured. Refusing to mint or decrypt master keys with a published fallback secret. Set a random MASTER_KEY_SECRET (16+ chars) in the host environment — generate one with: openssl rand -hex 32",
     );
+    err.code = "MASTER_KEY_SECRET_MISSING";
+    err.status = 503;
+    throw err;
   }
   try {
     const file = path.join(process.cwd(), DEV_SECRET_FILE);
@@ -146,6 +149,11 @@ export default async function handler(req: any, res: any) {
     return res.json({ masterKey, mid, label, expiresAt: exp, providers, tokenSize: masterKey.length, ...(sizeWarn ? { sizeWarn } : {}) });
   } catch (err: any) {
     console.error("keys/issue error:", err?.message || err);
+    // A misconfigured server must say so. "Issue fail ho gaya" sends the operator
+    // hunting for a bug in their key pool when the real problem is the environment.
+    if (err?.code === "MASTER_KEY_SECRET_MISSING") {
+      return res.status(503).json({ error: err.message, code: err.code });
+    }
     return res.status(500).json({ error: "Issue fail ho gaya" });
   }
 }

@@ -22,9 +22,12 @@ function masterSecret(): Buffer {
   }
   const isProd = process.env.NODE_ENV === "production" || !!process.env.VERCEL;
   if (isProd) {
-    throw new Error(
-      "MASTER_KEY_SECRET is not configured. Refusing to mint or decrypt master keys with a published fallback secret. Set a random MASTER_KEY_SECRET (16+ chars) in the host environment.",
+    const err: any = new Error(
+      "MASTER_KEY_SECRET is not configured. Refusing to mint or decrypt master keys with a published fallback secret. Set a random MASTER_KEY_SECRET (16+ chars) in the host environment — generate one with: openssl rand -hex 32",
     );
+    err.code = "MASTER_KEY_SECRET_MISSING";
+    err.status = 503;
+    throw err;
   }
   try {
     const file = path.join(process.cwd(), DEV_SECRET_FILE);
@@ -61,7 +64,11 @@ export default async function handler(req: any, res: any) {
       const d = crypto.createDecipheriv("aes-256-gcm", masterSecret(), iv);
       d.setAuthTag(tag);
       payload = JSON.parse(inflateSync(Buffer.concat([d.update(ct), d.final()])).toString("utf8"));
-    } catch {
+    } catch (err: any) {
+      // Distinguish "your token is bad" from "this server is misconfigured".
+      if (err?.code === "MASTER_KEY_SECRET_MISSING") {
+        return res.status(503).json({ valid: false, error: err.message, code: err.code });
+      }
       return res.status(401).json({ valid: false, error: "Master key invalid hai (tutli-phutli ya galat secret)." });
     }
     if (!payload || payload.v !== 1 || typeof payload.exp !== "number" || typeof payload.keys !== "object") {
@@ -87,6 +94,9 @@ export default async function handler(req: any, res: any) {
     });
   } catch (err: any) {
     console.error("keys/status error:", err?.message || err);
+    if ((err as any)?.code === "MASTER_KEY_SECRET_MISSING") {
+      return res.status(503).json({ error: { message: (err as any).message, type: "server_misconfigured", code: "MASTER_KEY_SECRET_MISSING" } });
+    }
     return res.status(500).json({ valid: false, error: "Status fail ho gaya" });
   }
 }
