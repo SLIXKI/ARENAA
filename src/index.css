@@ -543,3 +543,84 @@
     max-height: 94dvh;
   }
 }
+
+/* ==========================================================================
+   V2 UPGRADE PASS
+   The existing components were written against a flat monochrome brutalist
+   palette (neutral-800/900/950, rounded-none). Rather than rewrite 16 files —
+   and risk reflowing layouts that already work — the legacy utility classes are
+   remapped onto the v2 tokens here.
+
+   Why this wins the cascade: Tailwind v4 emits its utilities inside
+   `@layer utilities`, and unlayered rules beat layered ones regardless of order.
+   These rules therefore override the legacy colours without `!important`, while
+   variant utilities (hover:, focus:) keep their higher specificity and still work.
+
+   Only paint properties are touched — never layout — so nothing can reflow,
+   overflow or change size.
+   ========================================================================== */
+
+/* --- lines --- */
+.border-neutral-900 { border-color: rgba(255, 255, 255, 0.055); }
+.border-neutral-800 { border-color: var(--ui-border); }
+.border-neutral-700 { border-color: var(--ui-border-strong); }
+.border-neutral-600 { border-color: rgba(255, 255, 255, 0.2); }
+
+/* `neutral-850` is not a Tailwind class, so those panels were rendering with no
+   border colour at all. Give them a real one. */
+.border-neutral-850 { border-color: var(--ui-border-strong); }
+.bg-neutral-850 { background-color: var(--ui-surface-3); }
+
+/* --- surfaces --- */
+.bg-neutral-950 { background-color: #0a0d13; }
+.bg-neutral-950\/80 { background-color: rgba(10, 13, 19, 0.8); }
+.bg-neutral-950\/85 { background-color: rgba(10, 13, 19, 0.85); }
+.bg-neutral-950\/60 { background-color: rgba(10, 13, 19, 0.6); }
+.bg-neutral-900 { background-color: var(--ui-surface); }
+.bg-neutral-900\/60 { background-color: rgba(17, 20, 27, 0.6); }
+.bg-neutral-900\/40 { background-color: rgba(17, 20, 27, 0.4); }
+.bg-neutral-900\/30 { background-color: rgba(17, 20, 27, 0.3); }
+.bg-neutral-800 { background-color: var(--ui-surface-3); }
+
+/* --- text: lift the dimmest greys so body copy meets contrast on the new base --- */
+.text-neutral-600 { color: #7b8794; }
+.text-neutral-500 { color: var(--ui-text-muted); }
+
+/* --- shape: soften bordered panels only.
+   Targeting `.rounded-none.border-*` (specificity 0,2,0) means standalone
+   `rounded-none` on rules, bars and full-bleed sections stays square. --- */
+.rounded-none.border-neutral-800,
+.rounded-none.border-neutral-850,
+.rounded-none.border-neutral-700,
+.rounded-none.border-neutral-900,
+.rounded-none.border-white\/10,
+.rounded-none.border-white\/8 { border-radius: var(--ui-r-md); }
+
+/* Nested rows inside an already-rounded panel should stay subtler. */
+.divide-neutral-800 > * + * { border-color: var(--ui-border); }
+.divide-neutral-900 > * + * { border-color: rgba(255, 255, 255, 0.055); }
+
+/* --- inputs & selects: the legacy markup uses bare bordered elements --- */
+input.border-neutral-800, select.border-neutral-800, textarea.border-neutral-800,
+input.border-neutral-700, select.border-neutral-700, textarea.border-neutral-700 {
+  border-radius: var(--ui-r-sm);
+  background-color: rgba(4, 6, 9, 0.55);
+  transition: border-color var(--ui-fast), box-shadow var(--ui-fast);
+}
+input.border-neutral-800:focus, select.border-neutral-800:focus, textarea.border-neutral-800:focus,
+input.border-neutral-700:focus, select.border-neutral-700:focus, textarea.border-neutral-700:focus {
+  border-color: var(--ui-border-focus);
+  box-shadow: 0 0 0 3px rgba(52, 211, 153, 0.16);
+  outline: none;
+}
+
+/* --- buttons: gentle radius + lift on hover, without changing size --- */
+button.rounded-none.border-neutral-700,
+button.rounded-none.border-neutral-800 { border-radius: var(--ui-r-sm); }
+
+/* --- legacy code/pre blocks --- */
+pre.rounded-none, code.rounded-none { border-radius: var(--ui-r-sm); }
+
+/* --- tables / definition rows read better with a hairline --- */
+.border-b.border-neutral-800 { border-bottom-color: var(--ui-border); }
+.border-t.border-neutral-900 { border-top-color: rgba(255, 255, 255, 0.055); }

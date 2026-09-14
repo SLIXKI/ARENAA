@@ -2,18 +2,26 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Edge Router</title>
-    <meta name="description" content="Multi-region edge API router and load balancer with dynamic regional failover, sub-millisecond resolution, and high availability." />
-    <meta property="og:title" content="Edge Router" />
-    <meta property="og:description" content="Multi-region edge API router and load balancer with dynamic regional failover, sub-millisecond resolution, and high availability." />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <!-- viewport-fit=cover is what makes env(safe-area-inset-*) resolve on iOS;
+         without it the bottom tab bar sits under the home indicator. -->
+    <title>Edge AI Router — one key, every AI provider</title>
+    <meta name="description" content="Bring-your-own-key gateway that puts 27 AI providers behind one OpenAI-compatible and one Anthropic-compatible URL, with automatic key rotation, streaming, live key health and zero server-side storage." />
+    <meta name="theme-color" content="#08090c" />
+    <meta name="color-scheme" content="dark" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Edge Router" />
+    <meta property="og:title" content="Edge AI Router — one key, every AI provider" />
+    <meta property="og:description" content="Bring-your-own-key gateway that puts 27 AI providers behind one OpenAI-compatible and one Anthropic-compatible URL, with automatic key rotation, streaming, live key health and zero server-side storage." />
     <meta property="og:type" content="website" />
     <meta name="twitter:card" content="summary_large_image" />
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:ital,wght@0,400;0,500;0,600;1,400&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Syne:wght@700;800&display=swap" rel="stylesheet">
   </head>
-  <body class="bg-neutral-950 text-neutral-100 antialiased selection:bg-neutral-200 selection:text-neutral-950">
+  <body class="bg-neutral-950 text-neutral-100 antialiased">
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

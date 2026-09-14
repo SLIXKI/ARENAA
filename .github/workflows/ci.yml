@@ -1,0 +1,76 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# The repo had no CI at all: `npm run lint` was just `tsc --noEmit` and nothing
+# ran it. Every push and PR now has to typecheck, test and build.
+jobs:
+  verify:
+    name: Typecheck · Test · Build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Unit tests
+        run: npm test
+
+      - name: Build (SPA + server bundle)
+        run: npm run build
+
+      # Guard the deploy-critical invariants that are easy to break by accident.
+      - name: Serverless function budget (Vercel Hobby allows 12)
+        run: |
+          COUNT=$(find api -name '*.ts' -type f | wc -l | tr -d ' ')
+          echo "serverless functions: $COUNT"
+          if [ "$COUNT" -gt 12 ]; then
+            echo "::error::Vercel Hobby caps projects at 12 serverless functions — found $COUNT."
+            exit 1
+          fi
+
+      - name: No published fallback secret
+        run: |
+          if grep -rn "er-dev-fallback-secret" --include='*.ts' --include='*.tsx' . ; then
+            echo "::error::A published master-key fallback secret is back in the tree."
+            exit 1
+          fi
+
+      - name: No unused heavy dependencies
+        run: |
+          # `motion` was a ~100 kB dependency that nothing imported. Fail if a
+          # declared runtime dependency is never imported anywhere in src/ or api/.
+          for dep in motion framer-motion; do
+            if node -e "process.exit(require('./package.json').dependencies?.['$dep'] ? 0 : 1)"; then
+              if ! grep -rq "from ['\"]$dep" src/ api/ server.ts 2>/dev/null; then
+                echo "::error::dependency '$dep' is declared but never imported."
+                exit 1
+              fi
+            fi
+          done
+
+      - name: Report bundle size
+        run: |
+          echo "Initial blocking JS:"
+          node -e "
+            const fs=require('fs');
+            const html=fs.readFileSync('dist/index.html','utf8');
+            const refs=[...html.matchAll(/(?:src|href)=\"(\/assets\/[^\"]+\.js)\"/g)].map(m=>m[1]);
+            let t=0; for(const r of refs){const s=fs.statSync('dist'+r).size;t+=s;console.log('  '+(s/1024).toFixed(1).padStart(8)+' kB  '+r);}
+            console.log('  '+(t/1024).toFixed(1).padStart(8)+' kB  TOTAL');
+            if(t>450*1024){console.error('::error::Initial JS bundle exceeds the 450 kB budget.');process.exit(1);}
+          "

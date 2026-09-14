@@ -1,7 +1,9 @@
 {
-  "name": "Edge Router",
-  "description": "Multi-region edge API router and load balancer with dynamic regional failover, sub-millisecond resolution, and high availability.",
-  "requestFramePermissions": ["microphone"],
+  "name": "Edge AI Router",
+  "description": "Bring-your-own-key gateway that puts 27 AI providers behind one OpenAI-compatible and one Anthropic-compatible URL, with automatic key rotation, streaming, live key health and zero server-side storage.",
+  "requestFramePermissions": [
+    "microphone"
+  ],
   "majorCapabilities": [
     "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
   ]
