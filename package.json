@@ -1,7 +1,8 @@
 {
-  "name": "react-example",
+  "name": "edge-ai-router",
+  "version": "1.0.0",
+  "description": "Bring-your-own-key gateway that puts 27 AI providers behind one OpenAI-compatible and one Anthropic-compatible URL.",
   "private": true,
-  "version": "0.0.0",
   "type": "module",
   "scripts": {
     "dev": "tsx server.ts",
@@ -9,7 +10,11 @@
     "start": "node dist/server.cjs",
     "preview": "vite preview",
     "clean": "rm -rf dist server.js",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit",
+    "ci": "npm run typecheck && npm run test && npm run build"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",
@@ -18,7 +23,6 @@
     "dotenv": "^17.2.3",
     "express": "^4.21.2",
     "lucide-react": "^0.546.0",
-    "motion": "^12.23.24",
     "react": "^19.0.1",
     "react-dom": "^19.0.1",
     "vite": "^6.2.3",

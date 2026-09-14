@@ -1,3 +1,7 @@
+
+// Vercel: give this function enough wall-clock time for its own internal
+// timeouts to fire first, so callers get a real error instead of a platform kill.
+export const maxDuration = 30;
 // Live provider catalog sync — FULLY SELF-CONTAINED (no cross-file imports).
 // POST { keys?: { gemini?: string[], groq?: string[], ..., openai?: string[], deepseek?: string[], ... } }
 // Fans out to each provider's /models (8s timeout each). One provider failing

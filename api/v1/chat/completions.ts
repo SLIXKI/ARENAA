@@ -6,15 +6,116 @@
 // SSRF guard: catalog hosts + public-https-only custom hosts.
 import crypto from "node:crypto";
 import { inflateSync } from "node:zlib";
+import fs from "fs";
+import path from "path";
+import dns from "dns";
+
+// --- SSRF hardening: resolve DNS before calling a user-supplied base URL -------
+// A string check on the hostname is not enough: a public domain with an A record
+// pointing at 127.0.0.1 or 169.254.169.254 passes every regex. Known-good
+// upstreams are constants and skip this entirely; only custom endpoints pay for a
+// lookup, and results are cached for 60s.
+const DNS_CACHE_TTL_MS = 60_000;
+const dnsVerdicts = new Map<string, { ok: boolean; at: number }>();
+
+function isPrivateOrReservedIp(ip: string): boolean {
+  const v = ip.toLowerCase();
+  // IPv4-mapped IPv6 (::ffff:10.0.0.1) — compare the embedded v4 part.
+  const mapped = v.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/);
+  const addr = mapped ? mapped[1] : v;
+  if (addr.includes(".")) {
+    const [a, b] = addr.split(".").map((n) => parseInt(n, 10));
+    if (Number.isNaN(a) || Number.isNaN(b)) return true;
+    if (a === 0) return true;                       // 0.0.0.0/8
+    if (a === 10) return true;                      // private
+    if (a === 127) return true;                     // loopback
+    if (a === 169 && b === 254) return true;        // link-local / cloud metadata
+    if (a === 172 && b >= 16 && b <= 31) return true; // private
+    if (a === 192 && b === 168) return true;        // private
+    if (a === 100 && b >= 64 && b <= 127) return true; // CGNAT
+    if (a === 192 && b === 0) return true;          // IETF protocol assignments
+    if (a === 198 && (b === 18 || b === 19)) return true; // benchmarking
+    if (a >= 224) return true;                      // multicast + reserved
+    return false;
+  }
+  // IPv6
+  if (v === "::" || v === "::1") return true;
+  if (v.startsWith("fe8") || v.startsWith("fe9") || v.startsWith("fea") || v.startsWith("feb")) return true; // link-local
+  if (v.startsWith("fc") || v.startsWith("fd")) return true; // unique-local
+  if (v.startsWith("ff")) return true; // multicast
+  return false;
+}
+
+function hostnameOf(raw: string): string {
+  try { return new URL(raw).hostname.toLowerCase().replace(/^\[|\]$/g, ""); } catch { return ""; }
+}
+
+async function isSafeHostDns(rawUrl: string): Promise<boolean> {
+  const host = hostnameOf(rawUrl);
+  if (!host) return false;
+  if (/^\d+\.\d+\.\d+\.\d+$/.test(host) || host.includes(":")) {
+    return !isPrivateOrReservedIp(host); // literal IP — no lookup needed
+  }
+  const cached = dnsVerdicts.get(host);
+  if (cached && Date.now() - cached.at < DNS_CACHE_TTL_MS) return cached.ok;
+  let ok = false;
+  try {
+    const addrs = await dns.promises.lookup(host, { all: true });
+    ok = Array.isArray(addrs) && addrs.length > 0 && addrs.every((a) => !isPrivateOrReservedIp(a.address));
+  } catch {
+    ok = false;
+  }
+  dnsVerdicts.set(host, { ok, at: Date.now() });
+  return ok;
+}
+
+// Vercel: give this function enough wall-clock time for its own internal
+// timeouts to fire first, so callers get a real error instead of a platform kill.
+export const maxDuration = 60;
+export const runtime = "nodejs";
+
+// Attribution for upstreams that ask for it (OpenRouter). Derived from the real
+// deployment instead of a hardcoded domain, so self-hosters report their own site.
+function siteReferer(): string {
+  const raw =
+    process.env.APP_URL ||
+    (process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : "") ||
+    (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "") ||
+    "";
+  const trimmed = raw.trim().replace(/\/+$/, "");
+  if (!trimmed) return "https://edge-ai-router.local";
+  return /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+}
 
 const MASTER_PREFIX = "er1.";
 const UNIVERSAL_ID = "Edge Router";
 
+// Master-key secret: never a published constant. Production REQUIRES the env var;
+// local dev auto-generates a stable, gitignored, machine-local secret file instead.
+const DEV_SECRET_FILE = ".master-key-dev.secret";
 function masterSecret(): Buffer {
-  return crypto
-    .createHash("sha256")
-    .update(process.env.MASTER_KEY_SECRET || "er-dev-fallback-secret-v1-do-not-use-in-prod")
-    .digest();
+  const configured = (process.env.MASTER_KEY_SECRET || "").trim();
+  if (configured.length >= 16) {
+    return crypto.createHash("sha256").update(configured).digest();
+  }
+  const isProd = process.env.NODE_ENV === "production" || !!process.env.VERCEL;
+  if (isProd) {
+    throw new Error(
+      "MASTER_KEY_SECRET is not configured. Refusing to mint or decrypt master keys with a published fallback secret. Set a random MASTER_KEY_SECRET (16+ chars) in the host environment.",
+    );
+  }
+  try {
+    const file = path.join(process.cwd(), DEV_SECRET_FILE);
+    if (fs.existsSync(file)) {
+      const existing = fs.readFileSync(file, "utf8").trim();
+      if (existing.length >= 32) return crypto.createHash("sha256").update(existing).digest();
+    }
+    const generated = crypto.randomBytes(32).toString("hex");
+    try { fs.writeFileSync(file, generated + "\n", { mode: 0o600 }); } catch { /* read-only fs */ }
+    return crypto.createHash("sha256").update(generated).digest();
+  } catch {
+    return crypto.createHash("sha256").update(crypto.randomBytes(32)).digest();
+  }
 }
 
 function masterDecrypt(token: string): any {
@@ -380,7 +481,7 @@ async function relayOpenAI(opts: { baseUrl: string; apiKey: string; model: strin
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     Authorization: `Bearer ${opts.apiKey}`,
-    "HTTP-Referer": "https://edge-ai-router.vercel.app",
+    "HTTP-Referer": siteReferer(),
     "X-Title": "Edge Router",
   };
   let resp: Response;
@@ -516,8 +617,13 @@ export default async function handler(req: any, res: any) {
     // Model -> upstream; unknown model -> smart order me try (404/400 pe next).
     const target = customBase ? null : upstreamForModel(wanted);
     const ordered = customBase ? pool : orderPool(pool, target, wanted);
-    const retryable = (st: number) =>
-      [401, 403, 429, 500, 502, 503, 504].includes(st) || (!target && !customBase && [400, 404].includes(st));
+    // A 400/404 is only terminal when it came from the model's OWN upstream (or a
+    // custom endpoint the user pointed at deliberately). A 404 from a *fallback*
+    // provider just means that provider doesn't host this model, so keep rotating
+    // instead of giving up on the first mismatch.
+    const retryable = (st: number, servedIdNow: string) =>
+      [401, 403, 429, 500, 502, 503, 504].includes(st) ||
+      ([400, 404].includes(st) && (!!customBase || !target || servedIdNow === target));
 
     let lastErr = "unknown error";
     const deadKeyIndexes: number[] = [];
@@ -533,6 +639,15 @@ export default async function handler(req: any, res: any) {
         : itemBase
           ? { name: "Custom", baseUrl: itemBase }
           : UPSTREAMS[servedId] || UPSTREAMS[target || "prov-gemini"];
+      // SSRF: a user-supplied base URL must also survive DNS resolution, not just
+      // the hostname string check — a public domain can resolve to 127.0.0.1 or
+      // 169.254.169.254. Only custom endpoints pay for this; it's cached 60s.
+      if (customBase || itemBase) {
+        if (!(await isSafeHostDns(up.baseUrl))) {
+          lastErr = `Blocked: ${up.baseUrl} resolves to a private or reserved address.`;
+          break;
+        }
+      }
       keyLastUsed.set(keyHash(item.key), Date.now());
       const r = !itemBase && up.native === "anthropic"
         ? await relayAnthropic({ apiKey: item.key, model: wanted, messages: openaiMessages, maxTokens: max_tokens, temperature })
@@ -603,7 +718,7 @@ export default async function handler(req: any, res: any) {
       } else {
         keyFailOther.set(h, (keyFailOther.get(h) || 0) + 1);
       }
-      if (!retryable(r.status)) break;
+      if (!retryable(r.status, servedId)) break;
     }
 
     return res.status(502).json({

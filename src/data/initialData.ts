@@ -1,5 +1,15 @@
 import { Provider, Endpoint } from '../types/router';
 
+// The gateway lives on whatever origin is serving this app — never a hardcoded
+// domain, so self-hosted / preview / tunnel deployments all work out of the box.
+export const SITE_ORIGIN: string =
+  typeof window !== 'undefined' && window.location?.origin
+    ? window.location.origin
+    : 'http://localhost:3000';
+
+export const GATEWAY_BASE_URL = `${SITE_ORIGIN}/api/v1`;
+export const ANTHROPIC_BASE_URL = `${SITE_ORIGIN}/api/anthropic`;
+
 // UNIVERSAL MODE: ONE provider (Edge Router) — sab models, sab keys, auto-route.
 // Model naam se upstream select hota hai; providerId dene ki zaroorat nahi.
 // No hardcoded secrets: every key is per-user (KEYS UI / Copilot).
@@ -62,7 +72,7 @@ export const INITIAL_PROVIDERS: Provider[] = [
     name: 'Edge Router',
     slug: 'edge-router-universal',
     category: 'LLM & Multimodal',
-    defaultBaseUrl: 'https://edge-ai-router.vercel.app/api/v1',
+    defaultBaseUrl: GATEWAY_BASE_URL,
     models: UNIVERSAL_MODELS,
     dailyTokenQuota: 'Apni keys lagao • auto-route',
   },
@@ -76,12 +86,14 @@ export const INITIAL_ENDPOINTS: Endpoint[] = [
     region: 'global-anycast',
     regionLabel: 'Global Anycast',
     apiKey: '',
-    baseUrl: 'https://edge-ai-router.vercel.app/api/v1',
+    baseUrl: GATEWAY_BASE_URL,
     weight: 100,
     priorityTier: 1,
     status: 'healthy',
-    latencyMs: 12,
-    uptimePercentage: 99.99,
+    // Real numbers only: the live probe (src/utils/probe.ts) fills these in from
+    // actual /api/health round-trips. 0 means "not measured yet" — never fabricated.
+    latencyMs: 0,
+    uptimePercentage: 0,
     rateLimitRpm: 10000,
     rateLimitRemaining: 10000,
     totalRouted: 0,

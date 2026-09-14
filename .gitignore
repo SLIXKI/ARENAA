@@ -6,3 +6,6 @@ coverage/
 *.log
 .env*
 !.env.example
+
+# Local-only master key secret (auto-generated in dev, never commit)
+.master-key-dev.secret

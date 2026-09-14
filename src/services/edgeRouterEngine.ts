@@ -1,4 +1,5 @@
 import { Endpoint, Provider, RoutingDecision, RoutingPolicy, RegionCode } from '../types/router';
+import { probeGateway, computeStats, isSameOriginEndpoint } from '../utils/probe';
 
 // Geographic latency estimates based on client location to region
 export const REGIONAL_PROXIMITY: Record<RegionCode, Record<string, number>> = {
@@ -263,30 +264,35 @@ export class EdgeRouterEngine {
   }
 
   /**
-   * Health sweep across all endpoints to measure real-time latency jitter
+   * Live health sweep — REAL measurements only.
+   *
+   * Same-origin gateway endpoints get an actual /api/health round-trip and uptime
+   * becomes a rolling success ratio over the stored probe history. Third-party
+   * endpoints cannot be probed from the browser (CORS), so they are left
+   * unmeasured rather than being handed a fabricated latency.
    */
-  static runHealthSweep(endpoints: Endpoint[]): Endpoint[] {
-    return endpoints.map((ep) => {
-      const baseLatency =
-        ep.region === 'global-anycast'
-          ? 12
-          : ep.region.startsWith('ap-south')
-          ? 16
-          : ep.region.startsWith('us-')
-          ? 25
-          : ep.region.startsWith('eu-')
-          ? 70
-          : 120;
-
-      const jitter = Math.floor(Math.random() * 14 - 7);
-      const newLatency = Math.max(8, baseLatency + jitter);
-
-      return {
-        ...ep,
-        latencyMs: newLatency,
-        lastChecked: Date.now(),
-        uptimePercentage: Number((99.9 + (Math.random() * 0.09)).toFixed(2)),
-      };
-    });
+  static async runHealthSweep(endpoints: Endpoint[]): Promise<Endpoint[]> {
+    const results = await Promise.all(
+      endpoints.map(async (ep) => {
+        if (!isSameOriginEndpoint(ep.baseUrl)) {
+          return { ...ep, lastChecked: Date.now() };
+        }
+        const sample = await probeGateway(ep.baseUrl);
+        const stats = computeStats();
+        return {
+          ...ep,
+          latencyMs: sample.ok ? Math.round(sample.ms) : ep.latencyMs,
+          uptimePercentage: stats.measured ? stats.uptimePct : ep.uptimePercentage,
+          status: sample.ok
+            ? ep.status === 'offline'
+              ? ('healthy' as const)
+              : ep.status
+            : ('offline' as const),
+          errorsCount: sample.ok ? ep.errorsCount : ep.errorsCount + 1,
+          lastChecked: Date.now(),
+        };
+      }),
+    );
+    return results;
   }
 }

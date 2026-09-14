@@ -27,6 +27,7 @@ import { Provider, Endpoint, RoutingPolicy, RoutingDecision, WatchdogEvent } fro
 import { EdgeRouterEngine } from './services/edgeRouterEngine';
 import { AutonomousWatchdogService } from './services/autonomousWatchdog';
 import { getSessionUsername, setSession, clearSession, syncUserGeminiKey } from './utils/auth';
+import { computeStats } from './utils/probe';
 
 // Runs ONCE at module load — BEFORE any useState initializer reads localStorage.
 // (Old code ran migration inside a later initializer, so stale provider lists won.)
@@ -549,14 +550,25 @@ export default function App() {
     notify('success', `Provider added: ${newProvider.name}`, 'Ab Provider Keys me iski key dalo.');
   };
 
-  const handleRunHealthSweep = () => {
+  const handleRunHealthSweep = async () => {
     setIsHealthSweeping(true);
-    notify('info', 'Ping sweep shuru', 'Saare nodes ki latency check ho rahi hai.');
-    setTimeout(() => {
-      setEndpoints((prev) => EdgeRouterEngine.runHealthSweep(prev));
+    notify('info', 'Running live probe', 'Measuring real round-trip latency to the gateway.');
+    try {
+      const next = await EdgeRouterEngine.runHealthSweep(endpoints);
+      setEndpoints(next);
+      const stats = computeStats();
       setIsHealthSweeping(false);
-      notify('success', 'Ping sweep complete', 'Latency fresh ho gayi. Telemetry me dekho.');
-    }, 300);
+      notify(
+        'success',
+        'Probe complete',
+        stats.measured
+          ? `${stats.samples} real samples • median ${stats.medianMs} ms • p95 ${stats.p95Ms} ms • uptime ${stats.uptimePct}%`
+          : 'Nothing to probe — add a same-origin gateway endpoint first.',
+      );
+    } catch (err: any) {
+      setIsHealthSweeping(false);
+      notify('error', 'Probe failed', err?.message || 'Could not reach the gateway.');
+    }
   };
 
   const handleRecordDecision = (decision: RoutingDecision, updatedEndpoints: Endpoint[]) => {

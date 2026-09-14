@@ -644,7 +644,9 @@ Short me jawab dunga — detail chahiye to bol dena. Hindi/Hinglish/English sab 
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
       const queryParams = new URLSearchParams();
       if (userGeminiKey) queryParams.set('key', userGeminiKey);
-      queryParams.set('activeProvider', activeProvider);
+      // Was passing the whole Provider object -> the Live system prompt received
+      // the literal string "[object Object]". Send the display name instead.
+      queryParams.set('activeProvider', activeProvider?.name || 'Edge Router');
       queryParams.set('policy', routingPolicy);
       queryParams.set('nodeCount', endpoints.length.toString());
       if (fallbackChain && fallbackChain.length > 0) {
