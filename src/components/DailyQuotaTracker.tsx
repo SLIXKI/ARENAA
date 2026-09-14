@@ -75,16 +75,14 @@ export const DailyQuotaTracker: React.FC<DailyQuotaTrackerProps> = ({
       {/* Header Bar */}
       <div className="bg-neutral-900/80 border border-neutral-800 p-4 sm:p-6 space-y-4">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-neutral-800/80 pb-4">
-          <div className="space-y-1">
-            <div className="flex items-center gap-2 font-mono text-[11px] uppercase tracking-widest text-emerald-400">
-              <Flame className="w-3.5 h-3.5 animate-pulse" />
-              <span>LIVE TOKEN BURN & DAILY FREE QUOTA TRACKER</span>
-            </div>
-            <h2 className="text-xl sm:text-2xl font-bold font-mono uppercase text-white tracking-tight">
-              Daily Free Tier Consumption
-            </h2>
-            <p className="text-xs sm:text-sm text-neutral-400 font-sans">
-              Real-time rate-limit burn down meters. When any provider approaches 90%, traffic cascades seamlessly to the next configured fallback provider.
+          <div className="min-w-0 space-y-1.5">
+            <p className="ui-eyebrow flex items-center gap-2 text-amber-300">
+              <Flame className="h-3.5 w-3.5 animate-pulse" aria-hidden /> Daily quota
+            </p>
+            <h2 className="ui-h2 text-white">Token burn &amp; free-tier limits</h2>
+            <p className="text-[13px] leading-relaxed text-neutral-400">
+              Burn-down meters against each provider's daily limit. At 90% the watchdog cascades traffic to the next
+              provider in your fallback chain. Counters reset at UTC midnight.
             </p>
           </div>
 

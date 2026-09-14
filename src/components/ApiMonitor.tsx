@@ -15,6 +15,7 @@ import {
   Clock,
   RefreshCw,
 } from 'lucide-react';
+import { PageHeader } from './PageHeader';
 import type { Provider } from '../types/router';
 import {
   getProviderKeyEntries,
@@ -225,23 +226,19 @@ export const ApiMonitor: React.FC<ApiMonitorProps> = ({ providers }) => {
 
   return (
     <div className="space-y-6 pb-16 font-mono">
-      {/* Header */}
-      <div className="border-b border-neutral-800/80 pb-4 sm:pb-6 space-y-2">
-        <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 text-[10px] sm:text-xs uppercase tracking-widest text-neutral-400">
-          <span>LIVE KEY HEALTH</span>
-          <span>//</span>
-          <span className="text-emerald-400 font-semibold">SMART ROTATION MONITOR</span>
-        </div>
-        <h1 className="text-xl sm:text-2xl md:text-3xl font-extrabold tracking-tight text-white uppercase">
-          API MONITOR — KAUNSI KEY LIVE?
-        </h1>
-        <p className="text-xs sm:text-sm text-neutral-400 font-sans max-w-3xl leading-relaxed">
-          Har key ki live halat: <strong className="text-emerald-300">WORKING</strong> (jawab de rahi),
-          <strong className="text-amber-300"> EXHAUSTED</strong> (429 — 60s cooldown, auto-skip),
-          <strong className="text-rose-300"> DEAD</strong> (401/403 — replace karo).
-          Rotation automatically cooled/dead keys skip karke healthy key pakadta hai — rate limit kabhi nahi lagega.
-        </p>
-      </div>
+      <PageHeader
+        eyebrow={<>Key health <span aria-hidden className="text-neutral-700">/</span> smart rotation</>}
+        title="Which key is live?"
+        description={
+          <>
+            Real status for every key in the pool:{' '}
+            <strong className="font-semibold text-emerald-300">WORKING</strong> (responding),{' '}
+            <strong className="font-semibold text-amber-300">EXHAUSTED</strong> (429 — 60s cooldown, auto-skipped),{' '}
+            <strong className="font-semibold text-rose-300">DEAD</strong> (401/403 — replace it).
+            Rotation skips cooled and dead keys automatically, so a rate limit on one key never becomes a failure for you.
+          </>
+        }
+      />
 
       {/* Summary cards */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 sm:gap-3">

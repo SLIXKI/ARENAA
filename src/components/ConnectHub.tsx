@@ -7,6 +7,8 @@ import {
 } from 'lucide-react';
 import type { Endpoint, Provider, RoutingPolicy } from '../types/router';
 import { UNIVERSAL_MODELS } from '../data/initialData';
+import { resolveModelCatalog } from '../utils/catalog';
+import { upstreamForModel } from '../utils/upstream';
 import { getProviderKeys } from '../utils/providerKeys';
 import {
   listCustomEndpoints, addCustomEndpoint, deleteCustomEndpoint, updateCustomEndpoint,
@@ -121,11 +123,17 @@ export const ConnectHub: React.FC<ConnectHubProps> = ({
   }, [providers, masterKey, keysTick]);
 
   const stale = !!masterKey && isMasterStale(providers, masterMeta);
+  // Catalog-driven: live /models results win over the bundled seed, so the picker
+  // self-corrects when a provider renames or retires a model. Custom endpoints are
+  // always included — they are the user's own and never come from a catalog.
   const allModels = useMemo(() => {
-    const set = new Set<string>(UNIVERSAL_MODELS);
-    enabledCustoms.forEach((c) => { if (c.model) set.add(c.model); });
-    return [...set];
-  }, [enabledCustoms]);
+    const resolved = resolveModelCatalog(UNIVERSAL_MODELS, upstreamForModel);
+    const ids = resolved.models.map((m) => m.id);
+    enabledCustoms.forEach((c) => { if (c.model && !ids.includes(c.model)) ids.push(c.model); });
+    return ids;
+  }, [enabledCustoms, keysTick]);
+
+  const catalogProvenance = useMemo(() => resolveModelCatalog(UNIVERSAL_MODELS, upstreamForModel), [keysTick]);
 
   const doCopy = async (text: string, id: string) => {
     const ok = await copyText(text);
@@ -731,13 +739,38 @@ console.log(text);`,
 
           {/* model picker */}
           <div className="mb-3 flex flex-col gap-2 rounded-2xl border border-white/10 bg-black/40 p-3 sm:flex-row sm:items-center">
-            <span className="flex-shrink-0 text-[10px] font-bold uppercase tracking-widest text-neutral-400">Model for snippets:</span>
+            <span className="flex flex-shrink-0 flex-wrap items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-neutral-400">
+              Model for snippets:
+              {catalogProvenance.live ? (
+                <span className="ui-badge ui-badge-success" title="Confirmed by a real /models response from your providers">
+                  <span className="ui-dot ui-dot-live bg-emerald-400 text-emerald-400" aria-hidden /> Live
+                </span>
+              ) : (
+                <span className="ui-badge ui-badge-warning" title="Bundled fallback list — add a key and sync to confirm which models your providers actually serve">
+                  Bundled
+                </span>
+              )}
+            </span>
             <select
               value={customModelInput ? '__custom' : model}
               onChange={(e) => { if (e.target.value === '__custom') { setCustomModelInput('my-model'); } else { setCustomModelInput(''); setModel(e.target.value); } }}
               className="min-w-0 flex-1 rounded-lg border border-white/10 bg-neutral-900 px-3 py-2 font-mono text-xs text-white outline-none focus:border-emerald-400/60"
             >
-              {allModels.map((m) => (<option key={m} value={m}>{m}</option>))}
+              {(() => {
+                const byUp = new Map<string, string[]>();
+                allModels.forEach((m) => {
+                  const up = catalogProvenance.models.find((x) => x.id === m)?.upstream || 'other';
+                  const arr = byUp.get(up) || [];
+                  arr.push(m);
+                  byUp.set(up, arr);
+                });
+                const groups = [...byUp.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+                return groups.map(([up, ids]) => (
+                  <optgroup key={up} label={up.replace('prov-', '')}>
+                    {ids.map((m) => (<option key={m} value={m}>{m}</option>))}
+                  </optgroup>
+                ));
+              })()}
               <option value="__custom">✎ custom model id...</option>
             </select>
             {customModelInput !== '' && (

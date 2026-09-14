@@ -12,6 +12,7 @@ import {
   AlertCircle,
   Zap
 } from 'lucide-react';
+import { PageHeader } from './PageHeader';
 import { Endpoint, Provider, RoutingDecision } from '../types/router';
 
 interface TelemetryViewProps {
@@ -43,20 +44,11 @@ export const TelemetryView: React.FC<TelemetryViewProps> = ({
 
   return (
     <div className="space-y-6 sm:space-y-8 pb-16">
-      {/* Header */}
-      <div className="border-b border-neutral-800/80 pb-6 space-y-2">
-        <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 font-mono text-[11px] sm:text-xs uppercase tracking-widest text-neutral-400">
-          <span>EDGE TELEMETRY</span>
-          <span>//</span>
-          <span className="text-white font-semibold">SYNCHRONIZED METRICS</span>
-        </div>
-        <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white font-mono uppercase break-words">
-          REAL-TIME TELEMETRY & EVENT LOGS
-        </h1>
-        <p className="text-xs sm:text-sm text-neutral-400 font-sans max-w-2xl leading-relaxed">
-          Low-overhead telemetry streams synchronized across all active edge points of presence. Sub-second metrics collection with zero performance tax.
-        </p>
-      </div>
+      <PageHeader
+        eyebrow={<>Telemetry <span aria-hidden className="text-neutral-700">/</span> routing decisions</>}
+        title="Metrics & event log"
+        description="Latency, uptime and the stream of routing decisions. Gateway figures come from real probe round-trips; per-region node latency below is a simulation of the mesh model, not a measurement."
+      />
 
       {/* Asymmetric Bento-Grid for data-heavy sections */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">

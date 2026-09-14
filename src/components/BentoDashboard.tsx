@@ -21,6 +21,8 @@ import {
   ArrowRight,
   Cpu
 } from 'lucide-react';
+import { PageHeader } from './PageHeader';
+import { LiveStatusStrip } from './LiveStatusStrip';
 import { Endpoint, Provider, RoutingPolicy, RoutingDecision, WatchdogEvent } from '../types/router';
 
 interface BentoDashboardProps {
@@ -106,66 +108,48 @@ export const BentoDashboard: React.FC<BentoDashboardProps> = ({
 
   return (
     <div className="space-y-6 sm:space-y-8 pb-16">
-      {/* Header section with brutalist typography & asymmetric spacing */}
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 sm:gap-6 border-b border-neutral-800/80 pb-6">
-        <div className="space-y-2.5 max-w-2xl">
-          <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 font-mono text-[11px] sm:text-xs uppercase tracking-widest text-neutral-400">
-            <span>FUTURISTIC ROUTER</span>
-            <span>//</span>
-            <span className="text-white font-semibold">{activeProvider.name}</span>
-            <span>//</span>
-            <span>MULTI-REGION TOPOLOGY</span>
+      <PageHeader
+        eyebrow={
+          <>
+            <span>{activeProvider.name}</span>
+            <span aria-hidden className="text-neutral-700">/</span>
+            <span>{endpoints.length} endpoint{endpoints.length === 1 ? '' : 's'}</span>
+            <span aria-hidden className="text-neutral-700">/</span>
+            <span>{routingPolicy.replace(/-/g, ' ')}</span>
             {activeProvider.dailyTokenQuota && (
-              <>
-                <span>//</span>
-                <span className="text-emerald-400 bg-emerald-950/80 border border-emerald-800 px-2 py-0.5 text-[10px] font-mono tracking-normal font-semibold">
-                  ⚡ DAILY QUOTA: {activeProvider.dailyTokenQuota}
-                </span>
-              </>
+              <span className="ui-badge ui-badge-success ml-1">⚡ {activeProvider.dailyTokenQuota}</span>
             )}
-          </div>
-          <h1 className="text-2xl sm:text-4xl font-extrabold tracking-tight text-white font-mono uppercase break-words">
-            REGIONAL LOAD BALANCER
-          </h1>
-          <p className="text-xs sm:text-sm text-neutral-400 font-sans leading-relaxed">
-            Distribute API calls across multiple regional endpoints of {activeProvider.name}. Zero server overhead with sub-millisecond edge resolution, automated failover tiers, and dynamic latency minimization.
-          </p>
-
-          {/* Model tags */}
-          <div className="flex flex-wrap items-center gap-1.5 pt-1">
-            <span className="text-[10px] font-mono text-neutral-500 uppercase">MODELS:</span>
-            {activeProvider.models.map((m) => (
-              <span
-                key={m}
-                className="text-[10px] font-mono bg-neutral-900 border border-neutral-800 text-neutral-300 px-2 py-0.5"
-              >
-                {m}
-              </span>
-            ))}
-          </div>
-        </div>
-
-        {/* Quick stats banner */}
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3 w-full sm:w-auto">
-          {onOpenQuota && (
-            <button
-              onClick={onOpenQuota}
-              className="flex items-center justify-center gap-2 px-3.5 py-2.5 bg-neutral-900 hover:bg-neutral-850 text-emerald-400 border border-neutral-800 hover:border-emerald-800/80 font-mono text-xs uppercase tracking-wider transition-all duration-200 min-h-[44px]"
-            >
-              <Flame className="w-4 h-4 text-emerald-400 animate-pulse" />
-              <span>TOKEN QUOTA BURN</span>
+          </>
+        }
+        title="Routing control"
+        description="Every request goes to one gateway URL. The model name picks the provider, the key prefix picks the account, and a failure rotates to the next key mid-request."
+        actions={
+          <>
+            {onOpenQuota && (
+              <button type="button" onClick={onOpenQuota} className="ui-btn ui-btn-ghost">
+                <Flame className="h-4 w-4 text-amber-400" /> Token quota
+              </button>
+            )}
+            <button type="button" id="quick-test-btn" onClick={onOpenTester} className="ui-btn ui-btn-primary">
+              <Zap className="h-4 w-4" /> Send a test request
             </button>
+          </>
+        }
+      >
+        <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+          <span className="ui-eyebrow">Models</span>
+          <span className="ui-badge">{activeProvider.models.length}</span>
+          {activeProvider.models.slice(0, 4).map((m) => (
+            <span key={m} className="ui-badge font-mono normal-case tracking-normal">{m}</span>
+          ))}
+          {activeProvider.models.length > 4 && (
+            <span className="ui-badge text-neutral-500">+{activeProvider.models.length - 4} more</span>
           )}
-          <button
-            id="quick-test-btn"
-            onClick={onOpenTester}
-            className="flex items-center justify-center gap-2 px-4 py-2.5 bg-neutral-100 text-neutral-950 font-mono text-xs font-bold uppercase tracking-wider hover:bg-white transition-all duration-200 shadow-sm min-h-[44px]"
-          >
-            <span>LIVE SIMULATE / DISPATCH</span>
-            <ArrowUpRight className="w-4 h-4" />
-          </button>
         </div>
-      </div>
+      </PageHeader>
+
+      {/* Measured gateway telemetry — real round-trips, never simulated. */}
+      <LiveStatusStrip />
 
       {/* Cross-Provider Auto-Fallback Mesh Banner */}
       <div className="p-3 sm:p-3.5 bg-neutral-900/60 border border-neutral-800 flex flex-col md:flex-row md:items-center justify-between gap-3 font-mono text-xs w-full max-w-full min-w-0 overflow-hidden">

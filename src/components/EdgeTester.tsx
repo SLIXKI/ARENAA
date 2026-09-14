@@ -15,6 +15,7 @@ import {
   Check,
   Cpu
 } from 'lucide-react';
+import { PageHeader } from './PageHeader';
 import { Endpoint, Provider, RoutingPolicy, RoutingDecision } from '../types/router';
 import { EdgeRouterEngine, markProviderKeysExhausted } from '../services/edgeRouterEngine';
 import { SmartPromptRouter, PromptAnalysis } from '../services/autonomousWatchdog';
@@ -272,20 +273,11 @@ export const EdgeTester: React.FC<EdgeTesterProps> = ({
 
   return (
     <div className="space-y-8 pb-16">
-      {/* Header */}
-      <div className="border-b border-neutral-800/80 pb-6 space-y-2">
-        <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 font-mono text-[11px] sm:text-xs uppercase tracking-widest text-neutral-400">
-          <span>INTERACTIVE SANDBOX</span>
-          <span>//</span>
-          <span className="text-white font-semibold">LIVE ROUTER DISPATCH</span>
-        </div>
-        <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white font-mono uppercase break-words">
-          EDGE ROUTING & FAILOVER SIMULATOR
-        </h1>
-        <p className="text-xs sm:text-sm text-neutral-400 font-sans max-w-2xl leading-relaxed">
-          Dispatch requests through the simulated edge worker. Test latency distribution, failover triggers, and cache resolution with zero server overhead.
-        </p>
-      </div>
+      <PageHeader
+        eyebrow={<>Sandbox <span aria-hidden className="text-neutral-700">/</span> real dispatch</>}
+        title="Test the gateway"
+        description="Sends a real request through the gateway and shows exactly what served it: which provider, which key, how many keys were tried, and the measured latency. Toggles below let you simulate node degradation, quota exhaustion and cross-provider cascade on top of the live call."
+      />
 
       {testerError && (
         <div className="p-3 bg-rose-950/70 border border-rose-800/80 text-rose-300 text-xs font-sans">

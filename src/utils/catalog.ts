@@ -163,3 +163,55 @@ export async function runCatalogSync(providerIds: string[]): Promise<LiveCatalog
   }
   return fresh;
 }
+
+export interface ResolvedModel {
+  id: string;
+  upstream: string;
+  free?: boolean;
+  /** True when this id came from a real /models response rather than the seed list. */
+  live: boolean;
+}
+
+export interface ResolvedCatalog {
+  models: ResolvedModel[];
+  /** True when at least some entries came from a live provider sync. */
+  live: boolean;
+  syncedAt: number;
+  /** Seed ids no live catalog confirmed — kept, but flagged so the UI can say so. */
+  unverifiedCount: number;
+}
+
+/**
+ * The model list is catalog-driven, with the bundled seed only as a bootstrap.
+ *
+ * A hardcoded model list goes stale the moment a provider renames or retires
+ * something, and there is no way to know from the source which ids are still
+ * real. So: prefer ids confirmed by an actual /models response, keep the seed as
+ * a fallback so the app works before the first sync, and report provenance so the
+ * UI can distinguish "live" from "bundled, unverified" instead of asserting
+ * availability it has not checked.
+ */
+export function resolveModelCatalog(seed: string[], seedUpstream: (id: string) => string | null): ResolvedCatalog {
+  const cat = loadLiveCatalog();
+  const byId = new Map<string, ResolvedModel>();
+
+  // Seed first, so live entries win on collision.
+  for (const id of seed) {
+    byId.set(id, { id, upstream: seedUpstream(id) || "unknown", live: false });
+  }
+  if (cat && Array.isArray(cat.models)) {
+    for (const m of cat.models) {
+      if (!m?.id) continue;
+      byId.set(m.id, { id: m.id, upstream: m.upstream || seedUpstream(m.id) || "unknown", free: m.free, live: true });
+    }
+  }
+
+  const models = Array.from(byId.values());
+  const liveCount = models.filter((m) => m.live).length;
+  return {
+    models,
+    live: liveCount > 0,
+    syncedAt: cat?.syncedAt || 0,
+    unverifiedCount: models.length - liveCount,
+  };
+}
