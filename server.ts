@@ -98,7 +98,70 @@ const PORT = process.env.PORT ? Number(process.env.PORT) : 3000;
 const app = express();
 let server: any = null;
 
-app.use(express.json({ limit: "10mb" }));
+// 10 MB was far more than any legitimate payload here: the largest request is a
+// key pool (120 keys x ~60 chars = a few KB). A smaller cap is a cheap DoS guard.
+app.use(express.json({ limit: "2mb" }));
+
+// --- Best-effort per-IP rate limiting (parity with the api/ functions) --------
+// These three endpoints are unauthenticated and cause outbound work: keys/test
+// dials an arbitrary allowed host, catalog/sync fans out to 26 providers, and
+// keys/issue runs AES-GCM + deflate. Without a limit they are an open probe and
+// amplification primitive. Counters are in-memory, so this blunts casual abuse
+// rather than defeating a distributed attacker — and it fails OPEN, because
+// blocking legitimate traffic is worse than the abuse it deters.
+const RATE_WINDOW_MS = 60_000;
+const RATE_MAX_BUCKETS = 5_000;
+const rateBuckets = new Map<string, { count: number; resetAt: number }>();
+
+function makeRateLimiter(bucket: string, max: number) {
+  return (req: any, res: any, next: any) => {
+    try {
+      const xff = req.headers?.["x-forwarded-for"];
+      const first = Array.isArray(xff) ? xff[0] : typeof xff === "string" ? xff.split(",")[0] : "";
+      const ip = String(first || req.headers?.["x-real-ip"] || req.socket?.remoteAddress || "unknown").trim().slice(0, 64);
+      const key = `${bucket}:${ip}`;
+      const now = Date.now();
+      if (rateBuckets.size > RATE_MAX_BUCKETS) {
+        for (const [k, v] of rateBuckets) if (now >= v.resetAt) rateBuckets.delete(k);
+      }
+      const existing = rateBuckets.get(key);
+      if (!existing || now >= existing.resetAt) {
+        const resetAt = now + RATE_WINDOW_MS;
+        rateBuckets.set(key, { count: 1, resetAt });
+        res.setHeader("X-RateLimit-Limit", String(max));
+        res.setHeader("X-RateLimit-Remaining", String(max - 1));
+        res.setHeader("X-RateLimit-Reset", String(Math.ceil(resetAt / 1000)));
+        return next();
+      }
+      existing.count += 1;
+      if (existing.count > max) {
+        const retryAfter = Math.max(1, Math.ceil((existing.resetAt - now) / 1000));
+        res.setHeader("Retry-After", String(retryAfter));
+        res.setHeader("X-RateLimit-Limit", String(max));
+        res.setHeader("X-RateLimit-Remaining", "0");
+        res.setHeader("X-RateLimit-Reset", String(Math.ceil(existing.resetAt / 1000)));
+        return res.status(429).json({
+          error: {
+            message: `Too many requests to ${bucket}. Try again in ${retryAfter}s.`,
+            type: "rate_limit_error",
+            code: "rate_limited",
+            retry_after_s: retryAfter,
+          },
+        });
+      }
+      res.setHeader("X-RateLimit-Limit", String(max));
+      res.setHeader("X-RateLimit-Remaining", String(Math.max(0, max - existing.count)));
+      res.setHeader("X-RateLimit-Reset", String(Math.ceil(existing.resetAt / 1000)));
+      return next();
+    } catch {
+      return next(); // fail open
+    }
+  };
+}
+
+app.use("/api/keys/test", makeRateLimiter("keys/test", 30));
+app.use("/api/keys/issue", makeRateLimiter("keys/issue", 20));
+app.use("/api/catalog/sync", makeRateLimiter("catalog/sync", 10));
 
 // SINGLE-GATEWAY MODE: sole public endpoint is POST /api/v1/chat/completions.
 // Every user sends their OWN Gemini key via Authorization: Bearer <AIza...> or x-gemini-key.

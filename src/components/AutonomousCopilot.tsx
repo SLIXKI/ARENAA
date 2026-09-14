@@ -21,7 +21,8 @@ import {
   Shield,
   Key,
   RefreshCw,
-  Code2
+  Code2,
+  ShieldAlert
 } from 'lucide-react';
 import { Provider, Endpoint, RoutingPolicy } from '../types/router';
 import { CopyButton } from './CopyButton';
@@ -196,6 +197,40 @@ Short me jawab dunga — detail chahiye to bol dena. Hindi/Hinglish/English sab 
     };
   }, []);
 
+  /**
+   * Destructive actions need a human yes.
+   *
+   * The Copilot's output is model text — and on the live-voice path it is streamed
+   * audio transcription. Anything that can influence that output (a poisoned
+   * prompt, a compromised upstream, adversarial text pasted into the chat) could
+   * otherwise write credentials, delete endpoints or wipe usage data with no
+   * confirmation step. Reversible, non-destructive actions still run immediately;
+   * these are staged and rendered as an approval card.
+   */
+  const [pendingActions, setPendingActions] = useState<
+    { id: string; label: string; detail: string; run: () => void }[]
+  >([]);
+
+  const stageAction = (label: string, detail: string, run: () => void): string => {
+    const id = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
+    setPendingActions((prev) => [...prev, { id, label, detail, run }]);
+    return `Awaiting your approval: ${label}`;
+  };
+
+  const approveAction = (id: string) => {
+    const target = pendingActions.find((a) => a.id === id);
+    setPendingActions((prev) => prev.filter((a) => a.id !== id));
+    if (target) {
+      try {
+        target.run();
+      } catch { /* a failed action must not wedge the chat */ }
+    }
+  };
+
+  const denyAction = (id: string) => {
+    setPendingActions((prev) => prev.filter((a) => a.id !== id));
+  };
+
   // Parse and execute actions from AI response text with 100% full administrative control
   const executeAiActions = (text: string): string[] => {
     const executed: string[] = [];
@@ -206,9 +241,13 @@ Short me jawab dunga — detail chahiye to bol dena. Hindi/Hinglish/English sab 
       const provId = apiKeyMatch[1].trim();
       const keyVal = apiKeyMatch[2];
       if (onSetApiKey) {
-        onSetApiKey(provId, keyVal);
         const prov = providers.find((p) => p.id === provId);
-        executed.push(`Configured & saved API Key for ${prov?.name || provId}`);
+        // Writing a credential is destructive: stage it for approval.
+        executed.push(stageAction(
+          `Set API key for ${prov?.name || provId}`,
+          `Key ${keyVal.slice(0, 6)}…${keyVal.slice(-3)} (${keyVal.length} chars)`,
+          () => onSetApiKey(provId, keyVal),
+        ));
       }
     }
 
@@ -216,11 +255,14 @@ Short me jawab dunga — detail chahiye to bol dena. Hindi/Hinglish/English sab 
     const geminiKeyMatch = text.match(/\[ACTION:SET_GEMINI_KEY:([^\]\s]+)\]/);
     if (geminiKeyMatch && geminiKeyMatch[1]) {
       const keyVal = geminiKeyMatch[1];
-      if (onSetApiKey) {
-        onSetApiKey('Edge Router', keyVal);
-      }
-      localStorage.setItem('er_gemini_key', keyVal);
-      executed.push('Saved & activated Gemini API Key for Edge Router & Copilot');
+      executed.push(stageAction(
+        'Set the Copilot Gemini key',
+        `Key ${keyVal.slice(0, 6)}…${keyVal.slice(-3)} — saved to the pool and to er_gemini_key`,
+        () => {
+          if (onSetApiKey) onSetApiKey('Edge Router', keyVal);
+          try { localStorage.setItem('er_gemini_key', keyVal); } catch { /* storage unavailable */ }
+        },
+      ));
     }
 
     // 3. [ACTION:SWITCH_PROVIDER:Edge Router]
@@ -311,14 +353,21 @@ Short me jawab dunga — detail chahiye to bol dena. Hindi/Hinglish/English sab 
     // 8. [ACTION:DELETE_ENDPOINT:ep-id]
     const delMatch = text.match(/\[ACTION:DELETE_ENDPOINT:([a-zA-Z0-9_-]+)\]/);
     if (delMatch && delMatch[1] && onDeleteEndpoint) {
-      onDeleteEndpoint(delMatch[1]);
-      executed.push(`Removed edge node endpoint: ${delMatch[1]}`);
+      const epId = delMatch[1];
+      executed.push(stageAction(
+        `Delete endpoint ${epId}`,
+        'This removes the node and its stored key. It cannot be undone.',
+        () => onDeleteEndpoint(epId),
+      ));
     }
 
     // 9. [ACTION:RESET_QUOTA]
     if (text.includes('[ACTION:RESET_QUOTA]') && onResetUsage) {
-      onResetUsage();
-      executed.push('Reset daily request & token usage counters across all providers');
+      executed.push(stageAction(
+        'Reset daily usage counters',
+        'Clears today\'s request and token counts across every provider.',
+        () => onResetUsage(),
+      ));
     }
 
     // 10. [ACTION:RUN_EDGE_TEST:optional prompt]
@@ -359,8 +408,11 @@ Short me jawab dunga — detail chahiye to bol dena. Hindi/Hinglish/English sab 
     // 14. [ACTION:GENERATE_PROXY_KEY]
     if (text.includes('[ACTION:GENERATE_PROXY_KEY]')) {
       if (onGenerateNewProxyKey) {
-        onGenerateNewProxyKey();
-        executed.push('Generated & saved new Edge Proxy API Key in local edge cache');
+        executed.push(stageAction(
+          'Generate a new proxy key',
+          'Replaces the current Edge Proxy key. Anything still using the old one stops working.',
+          () => onGenerateNewProxyKey(),
+        ));
       }
       onSelectTab('export');
     }
@@ -1139,6 +1191,34 @@ Short me jawab dunga — detail chahiye to bol dena. Hindi/Hinglish/English sab 
           </button>
         </div>
       </div>
+
+      {/* Pending approvals — destructive actions the Copilot asked for */}
+      {pendingActions.length > 0 && (
+        <div className="flex-shrink-0 space-y-2 border-t border-amber-400/25 bg-amber-400/[0.06] p-3 sm:p-4">
+          <p className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.09em] text-amber-300">
+            <ShieldAlert className="h-3.5 w-3.5 flex-none" />
+            {pendingActions.length} action{pendingActions.length === 1 ? '' : 's'} need your approval
+          </p>
+          <ul className="space-y-2">
+            {pendingActions.map((a) => (
+              <li key={a.id} className="ui-card flex flex-col gap-2 p-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="min-w-0">
+                  <p className="truncate text-[13px] font-bold text-white">{a.label}</p>
+                  <p className="mt-0.5 text-[11.5px] leading-relaxed text-neutral-400">{a.detail}</p>
+                </div>
+                <div className="flex flex-none gap-2">
+                  <button type="button" onClick={() => denyAction(a.id)} className="ui-btn ui-btn-ghost ui-btn-sm">
+                    Deny
+                  </button>
+                  <button type="button" onClick={() => approveAction(a.id)} className="ui-btn ui-btn-primary ui-btn-sm">
+                    <CheckCircle2 className="h-3.5 w-3.5" /> Approve
+                  </button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {/* Input Box */}
       <div className="p-3 sm:p-4 bg-neutral-900 border-t border-neutral-800 flex-shrink-0 space-y-1.5">
