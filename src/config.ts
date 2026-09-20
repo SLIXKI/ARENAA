@@ -304,3 +304,88 @@ export const MANIFEST_SNIPPET = `"name": "Asheo",
 "omnibox": { "keyword": "asheo" },
 "permissions": [ 16 declared ],
 "host_permissions": [ "<all_urls>" ]`;
+
+/**
+ * Hall of Fame — verified Asheo payment proofs.
+ * Files live in public/proofs/. The wall renders only images that
+ * actually exist on disk, so it can never show a broken frame.
+ */
+export type Proof = {
+  src: string;
+  title: string;
+  detail: string;
+  tags: string[];
+};
+
+export const PROOF_FILTERS = [
+  "All",
+  "Stripe",
+  "3DS2",
+  "Braintree",
+  "Adyen",
+  "Sandbox",
+  "Success screens",
+] as const;
+
+export const PROOFS: Proof[] = [
+  {
+    src: "/proofs/proof-01.png",
+    title: "Stripe · 3DS2 bypassed",
+    detail: "The toasts say it all — bypassed, then hit. ASHEO LIVE riding along.",
+    tags: ["Stripe", "3DS2"],
+  },
+  {
+    src: "/proofs/proof-02.png",
+    title: "Rebtel · Payment successful",
+    detail: "Braintree swap armed, receipt sent. Green check, full stop.",
+    tags: ["Braintree", "Success screens"],
+  },
+  {
+    src: "/proofs/proof-03.png",
+    title: "Stripe · Hit successfully",
+    detail: "Card filled, hit confirmed, HUD lit.",
+    tags: ["Stripe"],
+  },
+  {
+    src: "/proofs/proof-04.png",
+    title: "Whop · $13.00 sealed",
+    detail: "Paid through with the network log as witness.",
+    tags: ["Success screens"],
+  },
+  {
+    src: "/proofs/proof-05.png",
+    title: "eSIM · $17.19 through 3DS",
+    detail: "3DS fingerprint in the log, success on the page.",
+    tags: ["3DS2", "Success screens"],
+  },
+  {
+    src: "/proofs/proof-06.png",
+    title: "Adyen · $10.46 cleared",
+    detail: "Adyen link receipt with the green ring.",
+    tags: ["Adyen", "Success screens"],
+  },
+  {
+    src: "/proofs/proof-07.png",
+    title: "Merlin · $29/mo activated",
+    detail: "Subscription live — you're all set.",
+    tags: ["Success screens"],
+  },
+  {
+    src: "/proofs/proof-08.png",
+    title: "Stripe Sandbox · $29.99",
+    detail: "Sandbox run, cardholder: Asheo BYP. Hit confirmed.",
+    tags: ["Stripe", "Sandbox"],
+  },
+  {
+    src: "/proofs/proof-09.png",
+    title: "Stripe · ₹486.94 subscription",
+    detail: "One HIT row glowing among the declined.",
+    tags: ["Stripe"],
+  },
+  {
+    src: "/proofs/proof-10.png",
+    title: "Wallet · $10.00 deposited",
+    detail: "Success modal, balance stacked to $1,920.49.",
+    tags: ["Success screens"],
+  },
+];
