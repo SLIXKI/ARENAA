@@ -16,9 +16,20 @@ type Particle = {
   maxLife: number;
 };
 
+type Burst = {
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  life: number;
+  max: number;
+  hue: number;
+};
+
 /**
  * Cinematic rising-ember particle field.
- * Reacts to the mouse (gentle repulsion) and scroll velocity (updraft boost).
+ * Reacts to the mouse (gentle repulsion), scroll velocity (updraft boost)
+ * and clicks (ember burst explosions).
  */
 export default function EmberField() {
   const ref = useRef<HTMLCanvasElement>(null);
@@ -66,6 +77,27 @@ export default function EmberField() {
     window.addEventListener("mousemove", onMouse, { passive: true });
     window.addEventListener("mouseleave", onLeave);
     window.addEventListener("scroll", onScroll, { passive: true });
+
+    // click bursts
+    const bursts: Burst[] = [];
+    const onBurst = (e: PointerEvent) => {
+      if (reduced) return;
+      for (let i = 0; i < 18; i++) {
+        const a = Math.random() * Math.PI * 2;
+        const sp = 1.5 + Math.random() * 4.6;
+        bursts.push({
+          x: e.clientX,
+          y: e.clientY,
+          vx: Math.cos(a) * sp,
+          vy: Math.sin(a) * sp - 1.6,
+          life: 0,
+          max: 42 + Math.random() * 34,
+          hue: 14 + Math.random() * 30,
+        });
+      }
+      if (bursts.length > 240) bursts.splice(0, bursts.length - 240);
+    };
+    window.addEventListener("pointerdown", onBurst, { passive: true });
 
     const count = Math.min(150, Math.floor((w * h) / 11000));
     const parts: Particle[] = [];
@@ -163,6 +195,25 @@ export default function EmberField() {
         }
       }
 
+      // click bursts
+      for (let i = bursts.length - 1; i >= 0; i--) {
+        const b = bursts[i];
+        b.life += 1;
+        b.vy += 0.09;
+        b.vx *= 0.985;
+        b.x += b.vx;
+        b.y += b.vy;
+        const k = 1 - b.life / b.max;
+        if (k <= 0) {
+          bursts.splice(i, 1);
+          continue;
+        }
+        ctx.beginPath();
+        ctx.fillStyle = `hsla(${b.hue}, 100%, 62%, ${(k * 0.9).toFixed(3)})`;
+        ctx.arc(b.x, b.y, 1.7 * k + 0.4, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
       ctx.globalCompositeOperation = "source-over";
       raf = requestAnimationFrame(tick);
     };
@@ -174,6 +225,7 @@ export default function EmberField() {
       window.removeEventListener("mousemove", onMouse);
       window.removeEventListener("mouseleave", onLeave);
       window.removeEventListener("scroll", onScroll);
+      window.removeEventListener("pointerdown", onBurst);
     };
   }, []);
 

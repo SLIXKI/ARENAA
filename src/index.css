@@ -240,3 +240,38 @@
   html { scroll-behavior: auto; }
   .slot-shimmer::after { animation: none; }
 }
+
+/* anchored sections clear the fixed nav */
+section[id] {
+  scroll-margin-top: 84px;
+}
+
+/* cursor-tracking spotlight for cards (vars set by a global pointer listener) */
+.spotlight {
+  position: relative;
+}
+.spotlight::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  opacity: 0;
+  transition: opacity 0.45s ease;
+  pointer-events: none;
+  background: radial-gradient(
+    340px circle at var(--mx, 50%) var(--my, 50%),
+    rgba(255, 138, 61, 0.14),
+    transparent 65%
+  );
+}
+.spotlight:hover::before {
+  opacity: 1;
+}
+
+/* thin ember scrollbar for filmstrips */
+.filmstrip::-webkit-scrollbar {
+  height: 4px;
+}
+.filmstrip::-webkit-scrollbar-thumb {
+  border: none;
+}

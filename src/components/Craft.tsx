@@ -49,7 +49,7 @@ export default function Craft() {
             const tall = i === 1 || i === 6;
             return (
               <Reveal key={s.title} delay={(i % 4) * 0.08} className={tall ? "lg:translate-y-8" : ""}>
-                <div className="card-lift glass group relative h-full overflow-hidden rounded-2xl p-6">
+                <div className="spotlight card-lift glass group relative h-full overflow-hidden rounded-2xl p-6">
                   <span
                     aria-hidden="true"
                     className="pointer-events-none absolute -top-8 -right-4 font-display text-[5.5rem] font-extrabold text-white/[0.05] transition-colors duration-500 group-hover:text-ember/10"

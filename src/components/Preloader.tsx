@@ -1,8 +1,16 @@
 import { useEffect, useState } from "react";
-import { motion } from "motion/react";
+import { AnimatePresence, motion } from "motion/react";
+
+const FACTS = [
+  "v1.6.1 · signed & sealed",
+  "16 permissions · declared up front",
+  "7 injection layers · one choreography",
+  "14 proofs · zero fakes",
+];
 
 export default function Preloader({ onDone }: { onDone: () => void }) {
   const [progress, setProgress] = useState(0);
+  const [fact, setFact] = useState(0);
 
   useEffect(() => {
     let v = 0;
@@ -15,7 +23,11 @@ export default function Preloader({ onDone }: { onDone: () => void }) {
       }
       setProgress(Math.floor(v));
     }, 90);
-    return () => window.clearInterval(id);
+    const facts = window.setInterval(() => setFact((f) => (f + 1) % FACTS.length), 750);
+    return () => {
+      window.clearInterval(id);
+      window.clearInterval(facts);
+    };
   }, [onDone]);
 
   return (
@@ -63,6 +75,20 @@ export default function Preloader({ onDone }: { onDone: () => void }) {
         <div className="mt-3 flex items-center justify-between font-mono text-xs text-smoke">
           <span>ASH&nbsp;1.6</span>
           <span className="tabular-nums text-bone">{progress}%</span>
+        </div>
+        <div className="mt-4 flex h-4 items-center justify-center">
+          <AnimatePresence mode="wait">
+            <motion.p
+              key={fact}
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={{ duration: 0.3 }}
+              className="font-mono text-[11px] tracking-[0.2em] text-ember-soft/70 uppercase"
+            >
+              {FACTS[fact]}
+            </motion.p>
+          </AnimatePresence>
         </div>
       </div>
     </motion.div>

@@ -4,6 +4,7 @@ import Preloader from "./components/Preloader";
 import Cursor from "./components/Cursor";
 import EmberField from "./components/EmberField";
 import Nav from "./components/Nav";
+import SideDots from "./components/SideDots";
 import Hero from "./components/Hero";
 import Marquee from "./components/Marquee";
 import Manifesto from "./components/Manifesto";
@@ -31,6 +32,19 @@ export default function App() {
     return () => window.clearTimeout(id);
   }, []);
 
+  // global cursor-tracking spotlight for .spotlight cards
+  useEffect(() => {
+    const move = (e: PointerEvent) => {
+      const el = (e.target as HTMLElement | null)?.closest?.(".spotlight") as HTMLElement | null;
+      if (!el) return;
+      const r = el.getBoundingClientRect();
+      el.style.setProperty("--mx", `${e.clientX - r.left}px`);
+      el.style.setProperty("--my", `${e.clientY - r.top}px`);
+    };
+    window.addEventListener("pointermove", move, { passive: true });
+    return () => window.removeEventListener("pointermove", move);
+  }, []);
+
   return (
     <div className="relative min-h-screen bg-abyss text-bone">
       <AnimatePresence>{loading && <Preloader onDone={done} />}</AnimatePresence>
@@ -40,6 +54,7 @@ export default function App() {
       <div className="noise-overlay" aria-hidden="true" />
 
       <Nav />
+      <SideDots />
       <main className="relative z-10">
         <Hero ready={!loading} />
         <Marquee

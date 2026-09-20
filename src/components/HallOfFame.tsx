@@ -44,11 +44,13 @@ function Lightbox({
   index,
   onClose,
   onStep,
+  onSelect,
 }: {
   proofs: Proof[];
   index: number;
   onClose: () => void;
   onStep: (d: number) => void;
+  onSelect: (i: number) => void;
 }) {
   const p = proofs[index];
 
@@ -79,7 +81,7 @@ function Lightbox({
     >
       <div className="container-x flex items-center justify-between py-4">
         <span className="font-mono text-xs tracking-[0.3em] text-smoke">
-          PROOF {String(index + 1).padStart(2, "0")} / {String(proofs.length).padStart(2, "0")}
+          PROOF {String(PROOFS.indexOf(p) + 1).padStart(2, "0")} / {String(PROOFS.length).padStart(2, "0")}
         </span>
         <button
           onClick={onClose}
@@ -91,7 +93,7 @@ function Lightbox({
       </div>
 
       <div
-        className="container-x relative flex min-h-0 flex-1 items-center justify-center gap-3 pb-4"
+        className="container-x relative flex min-h-0 flex-1 items-center justify-center gap-3 pb-2"
         onClick={(e) => e.stopPropagation()}
       >
         <button
@@ -114,7 +116,7 @@ function Lightbox({
             <img
               src={p.src}
               alt={p.title}
-              className="max-h-[62vh] w-auto max-w-full rounded-2xl border border-ember/25 object-contain shadow-[0_30px_100px_-20px_rgba(255,90,31,0.35)]"
+              className="max-h-[54vh] w-auto max-w-full rounded-2xl border border-ember/25 object-contain shadow-[0_30px_100px_-20px_rgba(255,90,31,0.35)]"
             />
             <figcaption className="mt-4 max-w-xl text-center">
               <p className="font-display text-xl font-bold">{p.title}</p>
@@ -137,6 +139,26 @@ function Lightbox({
         >
           <ChevronRight className="h-5 w-5" />
         </button>
+      </div>
+
+      {/* filmstrip */}
+      <div className="container-x flex justify-center pb-3" onClick={(e) => e.stopPropagation()}>
+        <div className="filmstrip flex max-w-full gap-2 overflow-x-auto px-1 py-1">
+          {proofs.map((t, i) => (
+            <button
+              key={t.src}
+              onClick={() => onSelect(i)}
+              className={`h-14 w-20 shrink-0 overflow-hidden rounded-lg border transition-all duration-300 ${
+                i === index
+                  ? "border-ember shadow-[0_0_16px_rgba(255,90,31,0.6)]"
+                  : "border-white/10 opacity-45 hover:opacity-90"
+              }`}
+              aria-label={`View ${t.title}`}
+            >
+              <img src={t.src} alt="" className="h-full w-full object-cover object-top" loading="lazy" />
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* mobile steppers */}
@@ -310,7 +332,7 @@ export default function HallOfFame() {
                     exit={{ opacity: 0, scale: 0.9 }}
                     transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1] }}
                     onClick={() => setLightbox(i)}
-                    className="group relative cursor-pointer overflow-hidden rounded-2xl border border-white/[0.08] bg-black/40 transition-colors duration-500 hover:border-ember/50"
+                    className="spotlight group relative cursor-pointer overflow-hidden rounded-2xl border border-white/[0.08] bg-black/40 transition-colors duration-500 hover:border-ember/50"
                     data-hover
                   >
                     <div className="relative h-64 overflow-hidden sm:h-72">
@@ -444,7 +466,13 @@ export default function HallOfFame() {
       {/* lightbox */}
       <AnimatePresence>
         {lightbox !== null && visible.length > 0 && (
-          <Lightbox proofs={visible} index={lightbox} onClose={() => setLightbox(null)} onStep={step} />
+          <Lightbox
+            proofs={visible}
+            index={lightbox}
+            onClose={() => setLightbox(null)}
+            onStep={step}
+            onSelect={setLightbox}
+          />
         )}
       </AnimatePresence>
     </section>

@@ -65,6 +65,79 @@ export default function Hero({ ready }: { ready: boolean }) {
         </p>
       </div>
 
+      {/* floating Asheo toasts — verbatim texts from real verified runs */}
+      <motion.div
+        style={{ opacity: fade }}
+        className="pointer-events-none absolute inset-0 z-10 hidden lg:block"
+        aria-hidden="true"
+      >
+        <motion.div
+          initial={{ opacity: 0, x: 40 }}
+          animate={ready ? { opacity: 1, x: 0 } : {}}
+          transition={{ delay: 1.1, duration: 1, ease }}
+          className="absolute top-[21%] right-[5%] xl:right-[8%]"
+        >
+          <motion.div
+            animate={{ y: [0, -12, 0], rotate: [2, 2.8, 2] }}
+            transition={{ repeat: Infinity, duration: 5.5, ease: "easeInOut" }}
+            className="flex items-center gap-2.5 rounded-xl border border-emerald-400/25 bg-black/70 py-2.5 pr-5 pl-3 shadow-[0_16px_50px_-12px_rgba(0,0,0,0.9)] backdrop-blur-md"
+          >
+            <span className="flex h-5 w-5 items-center justify-center rounded-full bg-emerald-400/15 font-mono text-[11px] text-emerald-300">
+              ✓
+            </span>
+            <span className="font-mono text-xs text-bone">Stripe3DS2 Bypassed</span>
+          </motion.div>
+        </motion.div>
+
+        <motion.div
+          initial={{ opacity: 0, x: -40 }}
+          animate={ready ? { opacity: 1, x: 0 } : {}}
+          transition={{ delay: 1.3, duration: 1, ease }}
+          className="absolute bottom-[30%] left-[4%] xl:left-[7%]"
+        >
+          <motion.div
+            animate={{ y: [0, 10, 0], rotate: [-2, -2.6, -2] }}
+            transition={{ repeat: Infinity, duration: 6.5, ease: "easeInOut", delay: 0.8 }}
+            className="flex items-center gap-2.5 rounded-xl border border-emerald-400/25 bg-black/70 py-2.5 pr-5 pl-3 shadow-[0_16px_50px_-12px_rgba(0,0,0,0.9)] backdrop-blur-md"
+          >
+            <span className="flex h-5 w-5 items-center justify-center rounded-full bg-emerald-400/15 font-mono text-[11px] text-emerald-300">
+              ✓
+            </span>
+            <span className="font-mono text-xs text-bone">[Stripe] Hit Successfully</span>
+          </motion.div>
+        </motion.div>
+
+        <motion.div
+          initial={{ opacity: 0, y: 40 }}
+          animate={ready ? { opacity: 1, y: 0 } : {}}
+          transition={{ delay: 1.5, duration: 1, ease }}
+          className="absolute right-[6%] bottom-[19%] xl:right-[10%]"
+        >
+          <motion.div
+            animate={{ y: [0, -9, 0], rotate: [1, 0.2, 1] }}
+            transition={{ repeat: Infinity, duration: 7.2, ease: "easeInOut", delay: 1.6 }}
+            className="rounded-xl border border-ember/30 bg-black/70 px-4 py-3 shadow-[0_16px_50px_-12px_rgba(255,90,31,0.35)] backdrop-blur-md"
+          >
+            <div className="flex items-center gap-2">
+              <span className="h-1.5 w-1.5 animate-pulse-dot rounded-full bg-emerald-400" />
+              <span className="font-mono text-[11px] font-semibold tracking-[0.25em] text-bone">
+                ASHEO LIVE
+              </span>
+            </div>
+            <div className="mt-2 flex gap-1.5">
+              {["SWAP ON", "CVV: GEN", "MODE: CC"].map((c) => (
+                <span
+                  key={c}
+                  className="rounded-md border border-ember/30 bg-ember/10 px-2 py-1 font-mono text-[9px] tracking-wider text-ember-soft"
+                >
+                  {c}
+                </span>
+              ))}
+            </div>
+          </motion.div>
+        </motion.div>
+      </motion.div>
+
       <motion.div
         style={{ opacity: fade, y: rise }}
         className="container-x relative z-10 flex flex-1 flex-col items-center justify-center pt-28 pb-10 text-center"

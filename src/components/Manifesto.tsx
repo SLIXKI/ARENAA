@@ -95,7 +95,7 @@ export default function Manifesto() {
         <div className="mt-16 grid gap-5 sm:grid-cols-3">
           {PRINCIPLES.map((c, i) => (
             <Reveal key={c.title} delay={i * 0.1}>
-              <div className="card-lift glass group h-full rounded-2xl p-7">
+              <div className="spotlight card-lift glass group h-full rounded-2xl p-7">
                 <div className="mb-5 flex h-12 w-12 items-center justify-center rounded-xl border border-ember/25 bg-ember/10 text-ember-soft transition-all duration-500 group-hover:scale-110 group-hover:bg-ember/20">
                   <c.icon className="h-5 w-5" />
                 </div>

@@ -232,7 +232,7 @@ export default function Architecture() {
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {LAYERS.map((l, i) => (
               <Reveal key={l.code} delay={(i % 4) * 0.08}>
-                <div className="card-lift glass group h-full rounded-2xl p-5">
+                <div className="spotlight card-lift glass group h-full rounded-2xl p-5">
                   <div className="mb-4 flex items-center justify-between">
                     <span className="font-display text-3xl font-extrabold text-white/[0.14] transition-colors duration-500 group-hover:text-ember/40">
                       {l.code}
